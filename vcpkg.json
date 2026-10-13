@@ -1,9 +1,25 @@
 {
-  "builtin-baseline": "f787b11768c36bba4ea3be80fbbdeb2af6895bb6",
+  "name": "ba7lya-topic-engine",
+  "version": "0.2.1",
+  "description": "MQTT topic matching, filtering and subscription routing",
+  "license": "MIT",
+  "builtin-baseline": "e456309491fd875487bf02b8a0dca76c1b1b00cc",
   "dependencies": [
-    "benchmark",
-    "gtest",
     "spdlog"
   ],
+  "features": {
+    "test": {
+      "description": "Build the GoogleTest suite",
+      "dependencies": [
+        "gtest"
+      ]
+    },
+    "benchmark": {
+      "description": "Build the google benchmark suite",
+      "dependencies": [
+        "benchmark"
+      ]
+    }
+  },
   "overrides": []
 }
