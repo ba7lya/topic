@@ -199,7 +199,7 @@ private:
 // does not depend on `T` - live in `error.hxx` and `error.cxx`.
 
 template<payload_container T>
-const router<T>::subscription_record* router<T>::expect_record(const subscription_id& id) const {
+const typename router<T>::subscription_record* router<T>::expect_record(const subscription_id& id) const {
     const auto entry = registry_.find(id);
     if (entry == registry_.end()) {
         throw std::logic_error(
