@@ -57,7 +57,9 @@ router<handler> router_with_shared_pattern(std::size_t count) {
         const auto parsed = topic_pattern_path::parse("sensors/{id}/reading");
         const auto registered
             = router.add_subscription(parsed.value(), qos::AT_MOST_ONCE, handler { "handler" + std::to_string(index) });
-        ::benchmark::DoNotOptimize(registered);
+        // `DoNotOptimize`'s non-deprecated overloads take `Tp&` or `Tp&&`, so the value is handed over as a mutable
+        // lvalue; the const is cast away only to reach the ordinary overload, and nothing writes through it.
+        ::benchmark::DoNotOptimize(const_cast<registration_outcome&>(registered));
     }
     return router;
 }
@@ -96,7 +98,9 @@ void get_subscribers(State& state) {
     for (const std::string& text : filter_corpus()) {
         const auto parsed = topic_pattern_path::parse(text);
         const auto registered = router.add_subscription(parsed.value(), qos::AT_LEAST_ONCE, handler { text });
-        ::benchmark::DoNotOptimize(registered);
+        // `DoNotOptimize`'s non-deprecated overloads take `Tp&` or `Tp&&`, so the value is handed over as a mutable
+        // lvalue; the const is cast away only to reach the ordinary overload, and nothing writes through it.
+        ::benchmark::DoNotOptimize(const_cast<registration_outcome&>(registered));
     }
 
     const auto topic = topic_path::parse("sensors/device001/reading");
@@ -113,7 +117,9 @@ void get_subscribers_miss(State& state) {
     for (const std::string& text : filter_corpus()) {
         const auto parsed = topic_pattern_path::parse(text);
         const auto registered = router.add_subscription(parsed.value(), qos::AT_LEAST_ONCE, handler { text });
-        ::benchmark::DoNotOptimize(registered);
+        // `DoNotOptimize`'s non-deprecated overloads take `Tp&` or `Tp&&`, so the value is handed over as a mutable
+        // lvalue; the const is cast away only to reach the ordinary overload, and nothing writes through it.
+        ::benchmark::DoNotOptimize(const_cast<registration_outcome&>(registered));
     }
 
     const auto topic = topic_path::parse("garden/lawn/moisture");

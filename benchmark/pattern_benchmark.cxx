@@ -53,7 +53,12 @@ void render_template(State& state) {
     for (const std::string& text : template_corpus()) { parsed.push_back(topic_pattern_path::parse(text).value()); }
 
     for (auto _ : state) {
-        for (const topic_pattern_path& filter : parsed) { ::benchmark::DoNotOptimize(filter.topic_pattern()); }
+        for (const topic_pattern_path& filter : parsed) {
+            // `topic_pattern()` hands back a const reference, and `DoNotOptimize`'s non-deprecated overloads take
+            // `Tp&` or `Tp&&`, so the text is copied out and the copy is what the compiler is kept from discarding.
+            std::string text = filter.topic_pattern();
+            ::benchmark::DoNotOptimize(text);
+        }
     }
 }
 
