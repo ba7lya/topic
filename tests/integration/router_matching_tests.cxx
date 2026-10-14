@@ -1,10 +1,12 @@
+///
+/// @file router_matching_tests.cxx
+/// @author BA7LYA (1042140025@qq.com)
+/// @brief Integration test for the router and the trie working together behind a stand-in broker client.
+/// @version 0.1
+/// @date 2026-10-14
+/// @copyright Copyright (c) 2026
+///
 // SPDX-License-Identifier: MIT
-//
-// Integration: the router and the trie working together behind a stand-in broker client.
-//
-// The point of this suite is the seam between the two: the router decides *when* a broker
-// subscription has to be made or dropped, and the trie decides *who* a delivered topic reaches.
-// Each case drives both and checks that the decisions agree.
 
 #include <algorithm>
 #include <cstddef>
@@ -17,52 +19,55 @@
 #include <vector>
 
 #include "test_support.hxx"
-#include "topic_engine.hxx"
+#include "topic.hxx"
 
-namespace ba7lya::topic_engine::integration {
+namespace ba7lya::topic::integration {
 namespace {
 
 using test::create_pattern;
 
-/// A message the caller would hand to a real client.
+///
+/// @brief A message the caller would hand to a real client.
+///
 struct published {
     std::string topic;
     std::string payload;
 };
 
-/// A broker client that only records what it was asked to do.
 ///
-/// Every real client has this shape: the router says "subscribe this" or "unsubscribe that" and
+/// @brief A broker client that only records what it was asked to do.
+/// @details Every real client has this shape: the router says "subscribe this" or "unsubscribe that" and
 /// the client turns it into a wire operation. Recording instead of sending keeps the test offline
 /// while still exercising the decision logic that precedes the send.
+///
 class fake_client {
 public:
-    /// Records a subscription at `level`, keeping the highest QoS seen for the pattern.
+    /// @brief Records a subscription at `level`, keeping the highest QoS seen for the pattern.
     void subscribe(const std::string& pattern, qos level) {
         subscribe_calls_.push_back(pattern);
         qos& current = subscriptions_[pattern];
         current = std::max(current, level);
     }
 
-    /// Records an unsubscription.
+    /// @brief Records an unsubscription.
     void unsubscribe(const std::string& pattern) {
         unsubscribe_calls_.push_back(pattern);
         subscriptions_.erase(pattern);
     }
 
-    /// What the broker would be holding right now.
+    /// @brief What the broker would be holding right now.
     [[nodiscard]]
     const std::unordered_map<std::string, qos>& subscriptions() const noexcept {
         return subscriptions_;
     }
 
-    /// Every subscribe call, in order, with repeats kept.
+    /// @brief Every subscribe call, in order, with repeats kept.
     [[nodiscard]]
     const std::vector<std::string>& subscribe_calls() const noexcept {
         return subscribe_calls_;
     }
 
-    /// Every unsubscribe call, in order, with repeats kept.
+    /// @brief Every unsubscribe call, in order, with repeats kept.
     [[nodiscard]]
     const std::vector<std::string>& unsubscribe_calls() const noexcept {
         return unsubscribe_calls_;
@@ -74,28 +79,30 @@ private:
     std::vector<std::string> unsubscribe_calls_;
 };
 
-/// A router wired to a client, so the two stay in step the way a real session keeps them.
+///
+/// @brief A router wired to a client, so the two stay in step the way a real session keeps them.
+///
 class session {
 public:
-    /// Registers a handler and subscribes on the broker only if the router says it must.
+    /// @brief Registers a handler and subscribes on the broker only if the router says it must.
     subscription_id subscribe(topic_pattern_path pattern, qos level, std::string handler) {
-        const auto [needs_subscribe, id] = router_.add_subscription(std::move(pattern), level, std::move(handler));
-        if (needs_subscribe) {
-            const auto* record = router_.get_topic_by_id(id).value();
+        const auto registered = router_.add_subscription(std::move(pattern), level, std::move(handler));
+        if (registered.needs_subscribe) {
+            const auto* record = router_.get_topic_by_id(registered.id).value();
             client_.subscribe(record->first.mqtt_pattern(), record->second);
         }
-        return id;
+        return registered.id;
     }
 
-    /// Unsubscribes on the broker only once the pattern has no handlers left.
+    /// @brief Unsubscribes on the broker only once the pattern has no handlers left.
     bool unsubscribe(subscription_id id) {
         const auto removed = router_.unsubscribe(id);
         if (!removed) { return false; }
-        if (removed.value().first) { client_.unsubscribe(removed.value().second.mqtt_pattern()); }
+        if (removed.value().topic_now_empty) { client_.unsubscribe(removed.value().pattern.mqtt_pattern()); }
         return true;
     }
 
-    /// Delivers `topic` and returns the payloads of every handler it reaches, in id order.
+    /// @brief Delivers `topic` and returns the payloads of every handler it reaches, in id order.
     [[nodiscard]]
     std::vector<std::string> deliver(const std::string& topic) const {
         const auto parsed = topic_path::parse(topic);
@@ -103,7 +110,7 @@ public:
 
         std::vector<std::pair<std::size_t, std::string>> reached;
         for (const auto& subscriber : router_.get_subscribers(*parsed.value())) {
-            reached.emplace_back(subscriber.id.value, *subscriber.payload);
+            reached.emplace_back(subscriber.id().value, *subscriber.payload());
         }
         std::ranges::sort(reached);
 
@@ -113,20 +120,20 @@ public:
         return payloads;
     }
 
-    /// The router, for the bookkeeping the test wants to inspect directly.
+    /// @brief The router, for the bookkeeping the test wants to inspect directly.
     [[nodiscard]]
-    const topic_router<std::string>& router() const noexcept {
+    const router<std::string>& routing() const noexcept {
         return router_;
     }
 
-    /// The client, for the same reason.
+    /// @brief The client, for the same reason.
     [[nodiscard]]
     const fake_client& client() const noexcept {
         return client_;
     }
 
 private:
-    topic_router<std::string> router_;
+    router<std::string> router_;
     fake_client client_;
 };
 
@@ -203,7 +210,7 @@ TEST(router_client_tests, the_resubscribe_plan_matches_what_the_client_holds) {
     current.subscribe(create_pattern("e/#"), qos::AT_MOST_ONCE, "e");
 
     // A reconnect asks the router what the broker should be holding, and the client agrees.
-    EXPECT_EQ(current.router().get_topics_for_resubscribe(), current.client().subscriptions());
+    EXPECT_EQ(current.routing().get_topics_for_resubscribe(), current.client().subscriptions());
 }
 
 // --- a delivered topic reaches every handler the filter admits ---
@@ -257,7 +264,7 @@ TEST(router_delivery_tests, a_bound_parameter_narrows_delivery_to_one_topic) {
 
 TEST(router_delivery_tests, cleanup_leaves_the_router_serving_nothing) {
     // A router owns a trie, so it moves but never copies; the shutdown path is exercised directly.
-    topic_router<std::string> drained;
+    router<std::string> drained;
     (void)drained.add_subscription(create_pattern("home/#"), qos::AT_MOST_ONCE, "home");
 
     drained.cleanup();
@@ -287,9 +294,11 @@ TEST(router_round_trip_tests, a_published_message_reaches_the_right_handlers) {
     EXPECT_EQ(received.at("home/kitchen/temperature"), std::vector<std::string>({ "kitchen" }));
     EXPECT_EQ(received.at("home/hall/humidity"), std::vector<std::string>({ "humidity" }));
 
-    // After the kitchen handler leaves, its pattern is only half empty, so the broker keeps it.
+    // The kitchen handler was the only one for `home/kitchen/+`, and a wire pattern with no
+    // handler left is one the broker has to drop. The sibling `home/+/humidity` sits on a
+    // different branch, so it is a different wire pattern and survives untouched.
     EXPECT_TRUE(current.unsubscribe(kitchen));
-    EXPECT_TRUE(current.client().unsubscribe_calls().empty());
+    EXPECT_EQ(current.client().unsubscribe_calls(), std::vector<std::string>({ "home/kitchen/+" }));
     EXPECT_EQ(current.deliver("home/kitchen/humidity"), std::vector<std::string>({ "humidity" }));
     EXPECT_TRUE(current.deliver("home/kitchen/temperature").empty());
 }
@@ -312,4 +321,4 @@ TEST(router_round_trip_tests, the_wire_pattern_survives_a_full_registration_cycl
 }
 
 } // namespace
-} // namespace ba7lya::topic_engine::integration
+} // namespace ba7lya::topic::integration

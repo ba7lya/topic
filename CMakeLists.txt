@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 # --- project ---
-project(ba7lya.topic-engine VERSION 0.2.1 LANGUAGES CXX)
+project(ba7lya.topic VERSION 0.2.1 LANGUAGES CXX)
 
 # --- build options ---
 option(${PROJECT_NAME}_BUILD_BENCHMARK "Build benchmarks" OFF)
@@ -14,7 +14,7 @@ option(${PROJECT_NAME}_BUILD_TEST      "Build Test"       OFF)
 # --- features ---
 # The Rust original gates the trie and the router behind its default `router` feature and the
 # match cache behind `lru-cache`; both compile to a `--cfg`-less build by default. The port turns
-# `feature = "x"` into `BA7LYA_TOPIC_ENGINE_NO_X`, so the macros only ever subtract.
+# `feature = "x"` into `BA7LYA_TOPIC_NO_X`, so the macros only ever subtract.
 option(${PROJECT_NAME}_ROUTER     "Build the topic matcher and router"       ON)
 option(${PROJECT_NAME}_LRU_CACHE  "Build the LRU match cache"                ON)
 
@@ -57,27 +57,25 @@ add_subdirectory(thirdparty)
 
 # --- target ---
 add_library(${PROJECT_NAME})
-add_library(ba7lya::topic_engine ALIAS ${PROJECT_NAME})
-add_library(ba7lya::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+add_library(ba7lya::topic ALIAS ${PROJECT_NAME})
 
 target_sources(${PROJECT_NAME}
     PRIVATE
-        src/cache_strategy.cxx
+        src/cache.cxx
         src/error.cxx
+        src/matcher.cxx
+        src/pattern.cxx
         src/qos.cxx
-        src/topic_match.cxx
-        src/topic_pattern_item.cxx
-        src/topic_pattern_path.cxx
 )
 
 if(${PROJECT_NAME}_ROUTER)
-    target_sources(${PROJECT_NAME} PRIVATE src/topic_matcher.cxx src/topic_router.cxx)
+    target_sources(${PROJECT_NAME} PRIVATE src/router.cxx)
 else()
-    target_compile_definitions(${PROJECT_NAME} PUBLIC BA7LYA_TOPIC_ENGINE_NO_ROUTER)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC BA7LYA_TOPIC_NO_ROUTER)
 endif()
 
 if(NOT ${PROJECT_NAME}_LRU_CACHE)
-    target_compile_definitions(${PROJECT_NAME} PUBLIC BA7LYA_TOPIC_ENGINE_NO_LRU_CACHE)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC BA7LYA_TOPIC_NO_LRU_CACHE)
 endif()
 
 target_include_directories(${PROJECT_NAME}
@@ -94,17 +92,14 @@ target_compile_options(${PROJECT_NAME} PRIVATE "$<$<CXX_COMPILER_ID:MSVC>:/utf-8
 # Consumed as a dependency the headers nest under `include/<author>/<package>/`, so several
 # packages from the same author can share one install prefix without colliding.
 set(${PROJECT_NAME}_PUBLIC_HEADERS
-    include/cache_strategy.hxx
+    include/cache.hxx
     include/error.hxx
+    include/matcher.hxx
+    include/pattern.hxx
     include/qos.hxx
     include/result.hxx
-    include/topic_engine.hxx
-    include/topic_match.hxx
-    include/topic_matcher.hxx
-    include/topic_pattern_item.hxx
-    include/topic_pattern_path.hxx
-    include/topic_router.hxx
-    include/topic_wellformedness.hxx
+    include/router.hxx
+    include/topic.hxx
 )
 
 install(

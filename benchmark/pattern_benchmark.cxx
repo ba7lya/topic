@@ -1,23 +1,26 @@
+///
+/// @file pattern_benchmark.cxx
+/// @author BA7LYA (1042140025@qq.com)
+/// @brief Benchmarks for the cost of the front end: parsing a template, rendering it, and binding values.
+/// @version 0.1
+/// @date 2026-10-14
+/// @copyright Copyright (c) 2026
+///
 // SPDX-License-Identifier: MIT
-//
-// Benchmarks: the cost of the front end — parsing a template, rendering it, and binding values.
-//
-// These are the numbers a caller pays once per subscription, which is why they are separated from
-// the per-message matching benchmarks.
 
 #include <benchmark/benchmark.h>
 #include <cstddef>
 #include <string>
 #include <vector>
 
-#include "topic_engine.hxx"
+#include "topic.hxx"
 
-namespace ba7lya::topic_engine {
+namespace ba7lya::topic {
 namespace {
 
 using ::benchmark::State;
 
-/// A spread of templates: literal, wildcard, named, and a long one.
+/// @brief A spread of templates: literal, wildcard, named, and a long one.
 const std::vector<std::string>& template_corpus() {
     static const std::vector<std::string> corpus {
         "sensors/temperature",
@@ -32,7 +35,7 @@ const std::vector<std::string>& template_corpus() {
     return corpus;
 }
 
-/// Parsing a template, which happens once per subscription.
+/// @brief Parsing a template, which happens once per subscription.
 void parse_template(State& state) {
     for (auto _ : state) {
         for (const std::string& text : template_corpus()) {
@@ -43,7 +46,7 @@ void parse_template(State& state) {
     state.SetItemsProcessed(state.iterations() * static_cast<std::int64_t>(template_corpus().size()));
 }
 
-/// Rendering a parsed template back to its filter text.
+/// @brief Rendering a parsed template back to its filter text.
 void render_template(State& state) {
     std::vector<topic_pattern_path> parsed;
     parsed.reserve(template_corpus().size());
@@ -54,7 +57,7 @@ void render_template(State& state) {
     }
 }
 
-/// Computing the wire pattern, which is what a broker subscription is keyed by.
+/// @brief Computing the wire pattern, which is what a broker subscription is keyed by.
 void wire_pattern(State& state) {
     std::vector<topic_pattern_path> parsed;
     parsed.reserve(template_corpus().size());
@@ -65,7 +68,7 @@ void wire_pattern(State& state) {
     }
 }
 
-/// Binding a parameter, which returns a fresh filter rather than mutating one.
+/// @brief Binding a parameter, which returns a fresh filter rather than mutating one.
 void bind_parameter(State& state) {
     const topic_pattern_path filter = topic_pattern_path::parse("home/{room}/{device}/temperature").value();
 
@@ -75,7 +78,7 @@ void bind_parameter(State& state) {
     }
 }
 
-/// Composing a publish topic from a template and its values.
+/// @brief Composing a publish topic from a template and its values.
 void format_topic(State& state) {
     const topic_pattern_path filter = topic_pattern_path::parse("devices/{type}/{id}/command").value();
     const std::vector<std::string> values { "sensor", "42" };
@@ -86,7 +89,7 @@ void format_topic(State& state) {
     }
 }
 
-/// Checking two templates for structural compatibility.
+/// @brief Checking two templates for structural compatibility.
 void check_compatibility(State& state) {
     const topic_pattern_path left = topic_pattern_path::parse("home/{room}/temperature").value();
     const topic_pattern_path right = topic_pattern_path::parse("home/{other}/temperature").value();
@@ -97,7 +100,7 @@ void check_compatibility(State& state) {
     }
 }
 
-/// Parsing a topic name, which happens once per delivered message.
+/// @brief Parsing a topic name, which happens once per delivered message.
 void parse_topic(State& state) {
     for (auto _ : state) {
         auto parsed = topic_path::parse("home/kitchen/device001/temperature");
@@ -114,6 +117,6 @@ BENCHMARK(check_compatibility);
 BENCHMARK(parse_topic);
 
 } // namespace
-} // namespace ba7lya::topic_engine
+} // namespace ba7lya::topic
 
 BENCHMARK_MAIN();

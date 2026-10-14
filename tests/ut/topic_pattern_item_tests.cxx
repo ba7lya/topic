@@ -1,17 +1,22 @@
+///
+/// @file topic_pattern_item_tests.cxx
+/// @author BA7LYA (1042140025@qq.com)
+/// @brief Unit tests for `topic_pattern_item`: parsing one filter level into a literal, `+` or `#`, and the two
+/// spellings the rest of the library renders from it.
+/// @version 0.1
+/// @date 2026-10-14
+/// @copyright Copyright (c) 2026
+///
 // SPDX-License-Identifier: MIT
-//
-// `topic_pattern_item`: parsing one filter level into a literal, `+` or `#`, and the two spellings
-// the rest of the library renders from it.
 
 #include <gtest/gtest.h>
-
 #include <string>
 #include <string_view>
 #include <variant>
 
-#include "topic_engine.hxx"
+#include "topic.hxx"
 
-namespace ba7lya::topic_engine {
+namespace ba7lya::topic {
 namespace {
 
 [[nodiscard]]
@@ -177,4 +182,4 @@ TEST(topic_pattern_item_tests, describes_errors) {
 }
 
 } // namespace
-} // namespace ba7lya::topic_engine
+} // namespace ba7lya::topic

@@ -1,12 +1,17 @@
+///
+/// @file basic_matching.cxx
+/// @author BA7LYA (1042140025@qq.com)
+/// @brief Example: pattern parsing, matching and parameter extraction, without a router.
+/// @version 0.1
+/// @date 2026-10-14
+/// @copyright Copyright (c) 2026
+///
 // SPDX-License-Identifier: MIT
-//
-// Example: pattern parsing, matching and parameter extraction, without a router.
-//
-// Build and run:
-//
-//     cmake --preset win-msvc-2022-x64 -Dba7lya.topic-engine_BUILD_EXAMPLE=ON
-//     cmake --build --preset win-msvc-2022-x64-dbg
-//     ./build/win-msvc-2022-x64/bin/Debug/topic_engine_example_basic_matching
+
+/// @brief Build and run:
+///   cmake --preset win-msvc-2026-x64 -Dba7lya.topic_BUILD_EXAMPLE=ON
+///   cmake --build --preset win-msvc-2026-x64-dbg
+///   ./build/win-msvc-2026-x64/bin/Debug/topic_example_basic_matching
 
 #include <cstddef>
 #include <iostream>
@@ -16,19 +21,21 @@
 #include <variant>
 #include <vector>
 
-#include "topic_engine.hxx"
+#include "topic.hxx"
 
 namespace {
 
-/// One demo filter and the topics to try it against.
+///
+/// @brief One demo filter and the topics to try it against.
+///
 struct demo {
     std::string filter;
     std::vector<std::string> topics;
 };
 
-/// Renders the captures of a match as `  [room=kitchen]`, or nothing when there are none.
+/// @brief Renders the captures of a match as `  [room=kitchen]`, or nothing when there are none.
 [[nodiscard]]
-std::string describe_captures(const ba7lya::topic_engine::topic_match& matched) {
+std::string describe_captures(const ba7lya::topic::topic_match& matched) {
     if (matched.param_count() == 0) { return {}; }
 
     std::string rendered = "  [";
@@ -39,10 +46,10 @@ std::string describe_captures(const ba7lya::topic_engine::topic_match& matched) 
     return rendered + ']';
 }
 
-/// Prints every filter's verdict for every topic it is given.
+/// @brief Prints every filter's verdict for every topic it is given.
 void show_matching(const std::vector<demo>& demos) {
     for (const demo& entry : demos) {
-        const auto filter = ba7lya::topic_engine::topic_pattern_path::parse(entry.filter);
+        const auto filter = ba7lya::topic::topic_pattern_path::parse(entry.filter);
         if (!filter) {
             std::cout << "  " << entry.filter << " -> rejected: " << describe(filter.error()) << '\n';
             continue;
@@ -53,7 +60,7 @@ void show_matching(const std::vector<demo>& demos) {
             const auto matched = filter.value().match_str(topic);
             if (!matched) {
                 const auto* excluded
-                    = std::get_if<ba7lya::topic_engine::dollar_topic_exclusion_error>(&matched.error());
+                    = std::get_if<ba7lya::topic::dollar_topic_exclusion_error>(&matched.error());
                 const std::string why = excluded == nullptr ? describe(matched.error()) : "excluded ($ topic)";
                 std::cout << "    " << topic << " -> no (" << why << ")\n";
                 continue;
@@ -63,9 +70,9 @@ void show_matching(const std::vector<demo>& demos) {
     }
 }
 
-/// Looks a named capture up and prints it the way an application would.
+/// @brief Looks a named capture up and prints it the way an application would.
 void show_named_capture(const std::string& filter_text, const std::string& topic, const std::string& name) {
-    const auto filter = ba7lya::topic_engine::topic_pattern_path::parse(filter_text);
+    const auto filter = ba7lya::topic::topic_pattern_path::parse(filter_text);
     if (!filter) { return; }
 
     const auto matched = filter.value().match_str(topic);
@@ -75,9 +82,9 @@ void show_named_capture(const std::string& filter_text, const std::string& topic
     std::cout << "    " << name << " = " << (value.has_value() ? std::string(*value) : std::string("<absent>")) << '\n';
 }
 
-/// Shows building a publish topic from the same template that subscribes to it.
+/// @brief Shows building a publish topic from the same template that subscribes to it.
 void show_publishing() {
-    const auto filter = ba7lya::topic_engine::topic_pattern_path::parse("devices/{type}/{id}/command");
+    const auto filter = ba7lya::topic::topic_pattern_path::parse("devices/{type}/{id}/command");
     if (!filter) { return; }
 
     const auto built = filter.value().format_topic({ "sensor", "42" });
@@ -92,9 +99,9 @@ void show_publishing() {
     if (!wrong_count) { std::cout << "  one value  : " << describe(wrong_count.error()) << '\n'; }
 }
 
-/// Shows narrowing a template by binding parameters, which is how a filtered subscription is made.
+/// @brief Shows narrowing a template by binding parameters, which is how a filtered subscription is made.
 void show_binding() {
-    const auto filter = ba7lya::topic_engine::topic_pattern_path::parse("sensors/{location}/{kind}/{id}/data");
+    const auto filter = ba7lya::topic::topic_pattern_path::parse("sensors/{location}/{kind}/{id}/data");
     if (!filter) { return; }
 
     const auto filtered
@@ -104,11 +111,11 @@ void show_binding() {
     std::cout << "  bound value: " << filtered.bound_value("location").value_or("<unbound>") << '\n';
 }
 
-/// Shows which templates the parser refuses, and why.
+/// @brief Shows which templates the parser refuses, and why.
 void show_rejections() {
     for (const std::string& text :
          { std::string(""), std::string("sensors/#/data"), std::string("sensors/sen+ors/data") }) {
-        const auto rejected = ba7lya::topic_engine::topic_pattern_path::parse(text);
+        const auto rejected = ba7lya::topic::topic_pattern_path::parse(text);
         if (!rejected) { std::cout << "  \"" << text << "\" -> " << describe(rejected.error()) << '\n'; }
     }
 }
@@ -116,7 +123,7 @@ void show_rejections() {
 } // namespace
 
 int main() {
-    using ba7lya::topic_engine::topic_pattern_path;
+    using ba7lya::topic::topic_pattern_path;
 
     std::cout << "\n=== matching ===\n";
     show_matching(
@@ -147,7 +154,7 @@ int main() {
     std::cout << '\n';
 
     // Matching one topic against several filters: the topic path is parsed once and shared.
-    const auto topic = ba7lya::topic_engine::topic_path::parse("home/kitchen/temperature");
+    const auto topic = ba7lya::topic::topic_path::parse("home/kitchen/temperature");
     if (topic) {
         std::cout << "=== one topic, several filters ===\n";
         const auto& shared_topic = topic.value();

@@ -1,18 +1,25 @@
+///
+/// @file matcher.cxx
+/// @author BA7LYA (1042140025@qq.com)
+/// @brief Implementation of topic names and match results.
+/// @version 0.1
+/// @date 2026-10-14
+/// @copyright Copyright (c) 2026
+///
 // SPDX-License-Identifier: MIT
 
-#include "topic_match.hxx"
+#include "matcher.hxx"
 
 #include <utility>
 
-#include "topic_wellformedness.hxx"
+#include "error.hxx"
 
-namespace ba7lya::topic_engine {
+namespace ba7lya::topic {
 
 namespace {
 
-/// Splits `text` on `/`, returning one view per level.
-///
-/// The split is total: `a/b` yields two levels and `a/` yields `"a"` and `""`, matching the
+/// @brief Splits `text` on `/`, returning one view per level.
+/// @details The split is total: `a/b` yields two levels and `a/` yields `"a"` and `""`, matching the
 /// Rust original's `str::split`.
 [[nodiscard]]
 std::vector<std::string_view> split_levels(std::string_view text) {
@@ -31,19 +38,6 @@ std::vector<std::string_view> split_levels(std::string_view text) {
 
 } // namespace
 
-std::string empty_topic_path_error::message() const { return "Topic cannot be empty"; }
-
-std::string null_char_topic_path_error::message() const { return "Topic must not contain the null character (U+0000)"; }
-
-topic_path_error make_topic_path_error(const malformed& cause) {
-    if (std::holds_alternative<null_char_error>(cause)) { return null_char_topic_path_error {}; }
-    return empty_topic_path_error {};
-}
-
-std::string describe(const topic_path_error& error) {
-    return std::visit([](const auto& concrete) { return concrete.message(); }, error);
-}
-
 topic_path::topic_path(std::string path)
     : path_(std::move(path)) {
     // Index into the stored string, not the argument: moving a short string may hand over its
@@ -55,29 +49,6 @@ topic_path_result topic_path::parse(std::string path) {
     if (const auto cause = check_wellformed(path)) { return make_topic_path_error(*cause); }
     // NOLINTNEXTLINE(modernize-make-shared): the constructor is private, so make_shared cannot see it.
     return std::shared_ptr<const topic_path> { new topic_path { std::move(path) } };
-}
-
-std::string unexpected_end_of_pattern_error::message() const {
-    return "Pattern ended unexpectedly while matching topic";
-}
-
-std::string unexpected_end_of_topic_error::message() const { return "Topic ended unexpectedly while matching pattern"; }
-
-std::string unexpected_hash_segment_error::message() const { return "Hash wildcard (#) found in unexpected position"; }
-
-std::string segment_mismatch_error::message() const {
-    return "Segment mismatch at position " + std::to_string(position) + ": expected '" + expected + "', found '" + found
-         + "'";
-}
-
-std::string duplicate_parameter_name_error::message() const { return "Duplicate parameter name found in pattern"; }
-
-std::string dollar_topic_exclusion_error::message() const {
-    return "Topic filter with a leading wildcard cannot match reserved $-topic '" + topic + "' (MQTT §4.7.2)";
-}
-
-std::string describe(const topic_match_error& error) {
-    return std::visit([](const auto& concrete) { return concrete.message(); }, error);
 }
 
 std::string_view topic_match::range_text(std::size_t start, std::size_t end) const {
@@ -113,4 +84,4 @@ std::string topic_match::to_string() const {
 
 std::string to_string(const topic_match& matched) { return matched.to_string(); }
 
-} // namespace ba7lya::topic_engine
+} // namespace ba7lya::topic

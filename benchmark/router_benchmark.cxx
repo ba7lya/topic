@@ -1,23 +1,32 @@
+///
+/// @file router_benchmark.cxx
+/// @author BA7LYA (1042140025@qq.com)
+/// @brief Benchmarks for the subscription table: registering filters, resolving a delivered topic through the trie, and
+/// the bookkeeping a reconnect reads.
+/// @version 0.1
+/// @date 2026-10-14
+/// @copyright Copyright (c) 2026
+///
 // SPDX-License-Identifier: MIT
-//
-// Benchmarks: the subscription table — registering filters, resolving a delivered topic through the
-// trie, and the bookkeeping a reconnect reads.
 
 #include <benchmark/benchmark.h>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "topic_engine.hxx"
+#include "topic.hxx"
 
-namespace ba7lya::topic_engine {
+namespace ba7lya::topic {
 namespace {
 
 using ::benchmark::State;
 
-/// The payload a subscription carries. `empty()` satisfies the trie's `payload_container` concept;
+///
+/// @brief The payload a subscription carries. `empty()` satisfies the trie's `payload_container` concept;
 /// a named handler is never empty, so no node is pruned early.
+///
 struct handler {
     std::string name;
 
@@ -27,7 +36,7 @@ struct handler {
     }
 };
 
-/// A spread of filters, one per shape the trie has to distinguish: literal, `+`, named, and `#`.
+/// @brief A spread of filters, one per shape the trie has to distinguish: literal, `+`, named, and `#`.
 const std::vector<std::string>& filter_corpus() {
     static const std::vector<std::string> corpus {
         "sensors/temperature",
@@ -40,10 +49,10 @@ const std::vector<std::string>& filter_corpus() {
     return corpus;
 }
 
-/// Builds a router holding `count` registrations that all share one wire pattern.
+/// @brief Builds a router holding `count` registrations that all share one wire pattern.
 [[nodiscard]]
-topic_router<handler> router_with_shared_pattern(std::size_t count) {
-    topic_router<handler> router;
+router<handler> router_with_shared_pattern(std::size_t count) {
+    router<handler> router;
     for (std::size_t index = 0; index < count; ++index) {
         const auto parsed = topic_pattern_path::parse("sensors/{id}/reading");
         const auto registered
@@ -53,10 +62,10 @@ topic_router<handler> router_with_shared_pattern(std::size_t count) {
     return router;
 }
 
-/// Registering distinct filters, which is what a start-up or reconnect pass does.
+/// @brief Registering distinct filters, which is what a start-up or reconnect pass does.
 void add_subscription(State& state) {
     for (auto _ : state) {
-        topic_router<handler> router;
+        router<handler> router;
         for (const std::string& text : filter_corpus()) {
             const auto parsed = topic_pattern_path::parse(text);
             ::benchmark::DoNotOptimize(router.add_subscription(parsed.value(), qos::AT_LEAST_ONCE, handler { text }));
@@ -65,26 +74,25 @@ void add_subscription(State& state) {
     state.SetItemsProcessed(state.iterations() * static_cast<std::int64_t>(filter_corpus().size()));
 }
 
-/// Registering N handlers on one pattern, the case where the QoS scan walks the table.
+/// @brief Registering N handlers on one pattern, the case where the QoS scan walks the table.
 void add_subscription_repeated(State& state) {
-    for (auto size : state) {
-        const auto parsed = topic_pattern_path::parse("sensors/{id}/reading");
+    const std::int64_t size = state.range(0);
+    const auto parsed = topic_pattern_path::parse("sensors/{id}/reading");
 
-        for (auto _ : state) {
-            topic_router<handler> router;
-            for (std::size_t index = 0; index < static_cast<std::size_t>(size); ++index) {
-                ::benchmark::DoNotOptimize(
-                    router.add_subscription(parsed.value(), qos::AT_MOST_ONCE, handler { "handler" })
-                );
-            }
+    for (auto _ : state) {
+        router<handler> router;
+        for (std::int64_t index = 0; index < size; ++index) {
+            ::benchmark::DoNotOptimize(
+                router.add_subscription(parsed.value(), qos::AT_MOST_ONCE, handler { "handler" })
+            );
         }
-        state.SetItemsProcessed(state.iterations() * size);
     }
+    state.SetItemsProcessed(state.iterations() * size);
 }
 
-/// Resolving a delivered topic against every stored filter, which is the per-message cost.
+/// @brief Resolving a delivered topic against every stored filter, which is the per-message cost.
 void get_subscribers(State& state) {
-    topic_router<handler> router;
+    router<handler> router;
     for (const std::string& text : filter_corpus()) {
         const auto parsed = topic_pattern_path::parse(text);
         const auto registered = router.add_subscription(parsed.value(), qos::AT_LEAST_ONCE, handler { text });
@@ -99,9 +107,9 @@ void get_subscribers(State& state) {
     }
 }
 
-/// Resolving a topic that reaches nothing, so the walk still visits every branch.
+/// @brief Resolving a topic that reaches nothing, so the walk still visits every branch.
 void get_subscribers_miss(State& state) {
-    topic_router<handler> router;
+    router<handler> router;
     for (const std::string& text : filter_corpus()) {
         const auto parsed = topic_pattern_path::parse(text);
         const auto registered = router.add_subscription(parsed.value(), qos::AT_LEAST_ONCE, handler { text });
@@ -116,14 +124,14 @@ void get_subscribers_miss(State& state) {
     }
 }
 
-/// Removing registrations, and with them the broker patterns they were holding up.
+/// @brief Removing registrations, and with them the broker patterns they were holding up.
 void unsubscribe(State& state) {
     for (auto _ : state) {
-        topic_router<handler> router;
+        router<handler> router;
         std::vector<subscription_id> ids;
         for (const std::string& text : filter_corpus()) {
             const auto parsed = topic_pattern_path::parse(text);
-            ids.push_back(router.add_subscription(parsed.value(), qos::AT_LEAST_ONCE, handler { text }).second);
+            ids.push_back(router.add_subscription(parsed.value(), qos::AT_LEAST_ONCE, handler { text }).id);
         }
 
         for (const subscription_id id : ids) {
@@ -133,9 +141,9 @@ void unsubscribe(State& state) {
     }
 }
 
-/// Reading the reconnect plan, which folds the registry down to distinct wire patterns.
+/// @brief Reading the reconnect plan, which folds the registry down to distinct wire patterns.
 void resubscribe_plan(State& state) {
-    const topic_router<handler> router = router_with_shared_pattern(64);
+    const router<handler> router = router_with_shared_pattern(64);
 
     for (auto _ : state) {
         auto plan = router.get_topics_for_resubscribe();
@@ -151,6 +159,6 @@ BENCHMARK(unsubscribe);
 BENCHMARK(resubscribe_plan);
 
 } // namespace
-} // namespace ba7lya::topic_engine
+} // namespace ba7lya::topic
 
 BENCHMARK_MAIN();

@@ -1,7 +1,13 @@
+///
+/// @file topic_matcher_tests.cxx
+/// @author BA7LYA (1042140025@qq.com)
+/// @brief Unit tests for `topic_matcher_node`: the trie behind the router - one pattern per subscription, and the
+/// subscriptions a delivered topic resolves to.
+/// @version 0.1
+/// @date 2026-10-14
+/// @copyright Copyright (c) 2026
+///
 // SPDX-License-Identifier: MIT
-//
-// `topic_matcher_node`: the trie behind the router — one pattern per subscription, and the set of
-// subscriptions a delivered topic resolves to.
 
 #include <cstddef>
 #include <gtest/gtest.h>
@@ -10,29 +16,33 @@
 #include <vector>
 
 #include "test_support.hxx"
-#include "topic_engine.hxx"
+#include "topic.hxx"
 #include "trie_support.hxx"
 
-namespace ba7lya::topic_engine {
+namespace ba7lya::topic {
 namespace {
 
 using test::active_subscriptions;
 using test::expected_active;
 using test::ids;
 
-/// One subscription to register: its filter text and the id to store under it.
+///
+/// @brief One subscription to register: its filter text and the id to store under it.
+///
 struct subscription {
     std::string pattern;
     std::size_t id = 0;
 };
 
-/// One delivered topic and the subscription ids it must resolve to.
+///
+/// @brief One delivered topic and the subscription ids it must resolve to.
+///
 struct delivery {
     std::string topic;
     ids expected;
 };
 
-/// Builds a trie from `subscriptions` and checks every `deliveries` entry.
+/// @brief Builds a trie from `subscriptions` and checks every `deliveries` entry.
 void expect_deliveries(const std::vector<subscription>& subscriptions, const std::vector<delivery>& deliveries) {
     topic_matcher_node<ids> root;
     for (const subscription& entry : subscriptions) {
@@ -345,12 +355,14 @@ TEST(topic_matcher_tests, removing_mixed_subscriptions_lifts_the_patterns_that_r
         ASSERT_TRUE(pruned) << entry.pattern;
     }
 
+    // Each surviving pattern keeps the one id that was inserted under it, so the counts below are
+    // per-pattern id counts rather than a tally of registrations.
     EXPECT_EQ(
         active_subscriptions(root), expected_active(
                                         {
-                                            { "sensors/humidity",   2 },
-                                            { "sensors/#",          4 },
-                                            { "home/+/temperature", 6 }
+                                            { "sensors/humidity",   1 },
+                                            { "sensors/#",          1 },
+                                            { "home/+/temperature", 1 }
     }
                                     )
     );
@@ -378,4 +390,4 @@ TEST(topic_matcher_tests, removing_every_subscription_empties_the_tree) {
 }
 
 } // namespace
-} // namespace ba7lya::topic_engine
+} // namespace ba7lya::topic

@@ -32,10 +32,10 @@ env:
   # actions/cache, so archives keep being cached and restored across runs.
   VCPKG_BINARY_SOURCES: clear;default,readwrite
   # the project's own build options, one per ${PROJECT_NAME}_BUILD_* option in the root CMakeLists
-  TOPIC_ENGINE_CONFIGURE_FLAGS: >-
-    -Dba7lya.topic-engine_BUILD_TEST=ON
-    -Dba7lya.topic-engine_BUILD_BENCHMARK=ON
-    -Dba7lya.topic-engine_BUILD_EXAMPLE=ON
+  TOPIC_CONFIGURE_FLAGS: >-
+    -Dba7lya.topic_BUILD_TEST=ON
+    -Dba7lya.topic_BUILD_BENCHMARK=ON
+    -Dba7lya.topic_BUILD_EXAMPLE=ON
 
 jobs:
   win-msvc:
@@ -74,14 +74,14 @@ jobs:
             version: 2022
             vsversion: "2022"
             toolset: "14.44"
-            base: win-msvc-2022-x64
+            base: win-msvc-2026-x64
             config: Debug
             config_name: dbg
           - os: windows-2022
             version: 2022
             vsversion: "2022"
             toolset: "14.44"
-            base: win-msvc-2022-x64
+            base: win-msvc-2026-x64
             config: Release
             config_name: rel
           - os: windows-2025-vs2026
@@ -125,7 +125,7 @@ jobs:
           cmake --preset ${{ matrix.base }}
           -DCMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake
           "-DVCPKG_MANIFEST_FEATURES=test;benchmark"
-          %TOPIC_ENGINE_CONFIGURE_FLAGS%
+          %TOPIC_CONFIGURE_FLAGS%
 
       - name: build
         shell: cmd
@@ -142,12 +142,12 @@ jobs:
       - name: smoke the benchmarks
         shell: cmd
         run: >
-          build\${{ matrix.base }}\bin\${{ matrix.config }}\topic_engine_benchmark_pattern.exe
+          build\${{ matrix.base }}\bin\${{ matrix.config }}\topic_benchmark_pattern.exe
           --benchmark_min_time=0.01s
 
       - name: smoke the examples
         shell: cmd
-        run: build\${{ matrix.base }}\bin\${{ matrix.config }}\topic_engine_example_basic_matching.exe
+        run: build\${{ matrix.base }}\bin\${{ matrix.config }}\topic_example_basic_matching.exe
 
       - name: upload test results
         if: always()
@@ -199,7 +199,7 @@ jobs:
           cmake --preset linux-gcc-x64
           -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
           "-DVCPKG_MANIFEST_FEATURES=test;benchmark"
-          $TOPIC_ENGINE_CONFIGURE_FLAGS
+          $TOPIC_CONFIGURE_FLAGS
 
       - name: build
         run: cmake --build --preset linux-gcc-x64-${{ matrix.config_name }}
@@ -210,10 +210,10 @@ jobs:
         run: ctest --preset linux-gcc-x64-test -C ${{ matrix.config }} --output-junit test-results.xml
 
       - name: smoke the benchmarks
-        run: ./build/linux-gcc-x64/bin/${{ matrix.config }}/topic_engine_benchmark_pattern --benchmark_min_time=0.01s
+        run: ./build/linux-gcc-x64/bin/${{ matrix.config }}/topic_benchmark_pattern --benchmark_min_time=0.01s
 
       - name: smoke the examples
-        run: ./build/linux-gcc-x64/bin/${{ matrix.config }}/topic_engine_example_basic_matching
+        run: ./build/linux-gcc-x64/bin/${{ matrix.config }}/topic_example_basic_matching
 
       - name: upload test results
         if: always()
@@ -263,7 +263,7 @@ jobs:
           cmake --preset linux-clang-x64
           -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
           "-DVCPKG_MANIFEST_FEATURES=test;benchmark"
-          $TOPIC_ENGINE_CONFIGURE_FLAGS
+          $TOPIC_CONFIGURE_FLAGS
 
       - name: build
         run: cmake --build --preset linux-clang-x64-${{ matrix.config_name }}
@@ -274,10 +274,10 @@ jobs:
         run: ctest --preset linux-clang-x64-test -C ${{ matrix.config }} --output-junit test-results.xml
 
       - name: smoke the benchmarks
-        run: ./build/linux-clang-x64/bin/${{ matrix.config }}/topic_engine_benchmark_pattern --benchmark_min_time=0.01s
+        run: ./build/linux-clang-x64/bin/${{ matrix.config }}/topic_benchmark_pattern --benchmark_min_time=0.01s
 
       - name: smoke the examples
-        run: ./build/linux-clang-x64/bin/${{ matrix.config }}/topic_engine_example_basic_matching
+        run: ./build/linux-clang-x64/bin/${{ matrix.config }}/topic_example_basic_matching
 
       - name: upload test results
         if: always()
@@ -350,7 +350,7 @@ jobs:
           cmake --preset linux-clang-x64
           -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
           "-DVCPKG_MANIFEST_FEATURES=test;benchmark"
-          $TOPIC_ENGINE_CONFIGURE_FLAGS
+          $TOPIC_CONFIGURE_FLAGS
 
       - name: assert the compile database exists
         run: test -s build/linux-clang-x64/compile_commands.json

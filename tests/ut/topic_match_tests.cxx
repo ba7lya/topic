@@ -1,10 +1,15 @@
+///
+/// @file topic_match_tests.cxx
+/// @author BA7LYA (1042140025@qq.com)
+/// @brief Unit tests for `topic_path` and the match result: MQTT section 4.7.3 well-formedness, the `/` split, and the
+/// parameter spans a match captures.
+/// @version 0.1
+/// @date 2026-10-14
+/// @copyright Copyright (c) 2026
+///
 // SPDX-License-Identifier: MIT
-//
-// `topic_path` and the match result: MQTT §4.7.3 well-formedness, the `/` split, and the parameter
-// spans a match captures.
 
 #include <gtest/gtest.h>
-
 #include <memory>
 #include <optional>
 #include <string>
@@ -13,9 +18,9 @@
 #include <vector>
 
 #include "test_support.hxx"
-#include "topic_engine.hxx"
+#include "topic.hxx"
 
-namespace ba7lya::topic_engine {
+namespace ba7lya::topic {
 namespace {
 
 using test::create_pattern;
@@ -162,4 +167,4 @@ TEST(topic_match_tests, describes_errors) {
 }
 
 } // namespace
-} // namespace ba7lya::topic_engine
+} // namespace ba7lya::topic

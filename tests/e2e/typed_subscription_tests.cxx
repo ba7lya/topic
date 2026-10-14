@@ -1,12 +1,12 @@
+///
+/// @file typed_subscription_tests.cxx
+/// @author BA7LYA (1042140025@qq.com)
+/// @brief End-to-end test of a typed MQTT session driven entirely through the public API.
+/// @version 0.1
+/// @date 2026-10-14
+/// @copyright Copyright (c) 2026
+///
 // SPDX-License-Identifier: MIT
-//
-// End to end: a typed MQTT session driven entirely through the public API.
-//
-// Where the unit suites pin one type down and the integration suite watches the router meet the
-// trie, this suite plays the part of a real application: parse a filter, register a handler behind
-// it, learn from the router whether the broker has to be told, deliver payloads, and shut down.
-// Nothing but `topic_engine.hxx` is included, so anything that only works through a test-local
-// helper would show up here as a compile error.
 
 #include <algorithm>
 #include <cstddef>
@@ -18,12 +18,12 @@
 #include <utility>
 #include <vector>
 
-#include "topic_engine.hxx"
+#include "topic.hxx"
 
-namespace ba7lya::topic_engine::e2e {
+namespace ba7lya::topic::e2e {
 namespace {
 
-/// Parses a filter, throwing when the test feeds it something invalid.
+/// @brief Parses a filter, throwing when the test feeds it something invalid.
 [[nodiscard]]
 topic_pattern_path pattern_of(const std::string& text) {
     auto parsed = topic_pattern_path::parse(text);
@@ -31,10 +31,11 @@ topic_pattern_path pattern_of(const std::string& text) {
     return std::move(parsed).value();
 }
 
-/// The payload an application would attach to a subscription: a named handler.
 ///
-/// `empty()` is what the trie's `payload_container` concept asks for, and here it means exactly what
+/// @brief The payload an application would attach to a subscription: a named handler.
+/// @details `empty()` is what the trie's `payload_container` concept asks for, and here it means exactly what
 /// it means for the containers: a payload with no name is nothing, so its node can be pruned.
+///
 struct handler {
     std::string name;
 
@@ -44,50 +45,59 @@ struct handler {
     }
 };
 
-/// What one delivery produced: the handler name and the parameters it was able to extract.
+///
+/// @brief What one delivery produced: the handler name and the parameters it was able to extract.
+///
 struct delivery {
     std::string handler;
     std::string payload;
 };
 
-/// A typed MQTT session: `topic_router<handler>` plus the broker bookkeeping an app has to keep.
 ///
-/// This is the shape the Rust README's integration example sketches, with the client replaced by
+/// @brief A typed MQTT session: `router<handler>` plus the broker bookkeeping an app has to keep.
+/// @details This is the shape the Rust README's integration example sketches, with the client replaced by
 /// recorded wire calls so the flow stays offline and deterministic.
+///
 class typed_session {
 public:
-    /// Registers `filter` for `name` and subscribes on the broker exactly when the router asks.
-    ///
-    /// Returns the subscription id and the wire pattern, in that order, so a test can assert on
-    /// what the broker was told without reaching into the router.
+    /// @brief Registers `filter` for `name` and subscribes on the broker exactly when the router asks.
+    /// @details Returns the subscription id and the wire pattern, in that order, so a test can assert on
+/// what the broker was told without reaching into the router.
     std::pair<subscription_id, std::string> subscribe(const std::string& filter, qos level, const std::string& name) {
-        const auto [needs_subscribe, id]
-            = router_.add_subscription(pattern_of(filter), level, handler { .name = name });
-        const auto* record = router_.get_topic_by_id(id).value();
+        return subscribe(pattern_of(filter), level, name);
+    }
+
+    /// @brief Registers an already-built filter, bindings and all.
+    /// @details The overload to reach for when the filter carries bound parameters: re-parsing its template
+/// would hand the router an unbound filter and quietly register the wider pattern.
+    std::pair<subscription_id, std::string> subscribe(
+        const topic_pattern_path& filter, qos level, const std::string& name
+    ) {
+        const auto registered = router_.add_subscription(filter, level, handler { .name = name });
+        const auto* record = router_.get_topic_by_id(registered.id).value();
 
         std::string wire = record->first.mqtt_pattern();
-        if (needs_subscribe) {
+        if (registered.needs_subscribe) {
             wire_subscriptions_[wire] = std::max(wire_subscriptions_[wire], record->second);
             wire_calls_.push_back(wire);
         }
-        return { id, std::move(wire) };
+        return { registered.id, std::move(wire) };
     }
 
-    /// Removes `id` and, if the router says the pattern went empty, drops it from the broker.
+    /// @brief Removes `id` and, if the router says the pattern went empty, drops it from the broker.
     bool unsubscribe(subscription_id id, std::string& dropped_wire) {
         const auto removed = router_.unsubscribe(id);
         if (!removed) { return false; }
-        if (!removed.value().first) { return true; }
+        if (!removed.value().topic_now_empty) { return true; }
 
-        dropped_wire = removed.value().second.mqtt_pattern();
+        dropped_wire = removed.value().pattern.mqtt_pattern();
         wire_subscriptions_.erase(dropped_wire);
         return true;
     }
 
-    /// The handler names a delivered topic reaches, each paired with the payload that arrived.
-    ///
-    /// Payloads live in the router's own storage, so they are read through the subscriber pointer
-    /// rather than copied out of the registry.
+    /// @brief The handler names a delivered topic reaches, each paired with the payload that arrived.
+    /// @details Payloads live in the router's own storage, so they are read through the subscriber pointer
+/// rather than copied out of the registry.
     [[nodiscard]]
     std::vector<delivery> deliver(const std::string& topic, const std::string& payload) const {
         const auto parsed = topic_path::parse(topic);
@@ -97,7 +107,7 @@ public:
         for (const auto& subscriber : router_.get_subscribers(*parsed.value())) {
             reached.push_back(
                 {
-                    subscriber.id.value, delivery { subscriber.payload->name, payload }
+                    subscriber.id().value, delivery { subscriber.payload()->name, payload }
             }
             );
         }
@@ -109,7 +119,7 @@ public:
         return deliveries;
     }
 
-    /// The handler names a delivery reaches, in id order — the compact form for most assertions.
+    /// @brief The handler names a delivery reaches, in id order — the compact form for most assertions.
     [[nodiscard]]
     std::vector<std::string> handlers_for(const std::string& topic) const {
         std::vector<std::string> names;
@@ -117,7 +127,7 @@ public:
         return names;
     }
 
-    /// The pattern texts the router still holds, sorted, for teardown assertions.
+    /// @brief The pattern texts the router still holds, sorted, for teardown assertions.
     [[nodiscard]]
     std::vector<std::string> active_patterns() const {
         std::vector<std::string> patterns;
@@ -128,37 +138,37 @@ public:
         return patterns;
     }
 
-    /// What a real client would be holding on the wire right now.
+    /// @brief What a real client would be holding on the wire right now.
     [[nodiscard]]
     const std::unordered_map<std::string, qos>& wire_subscriptions() const noexcept {
         return wire_subscriptions_;
     }
 
-    /// Every subscribe the router asked for, in order, repeats kept.
+    /// @brief Every subscribe the router asked for, in order, repeats kept.
     [[nodiscard]]
     const std::vector<std::string>& wire_calls() const noexcept {
         return wire_calls_;
     }
 
-    /// The router's answer to "what do I replay after a reconnect".
+    /// @brief The router's answer to "what do I replay after a reconnect".
     [[nodiscard]]
     std::unordered_map<std::string, qos> resubscribe_plan() const {
         return router_.get_topics_for_resubscribe();
     }
 
-    /// Shuts the session down the way an application does on exit.
+    /// @brief Shuts the session down the way an application does on exit.
     void shutdown() {
         router_.cleanup();
         wire_subscriptions_.clear();
     }
 
 private:
-    topic_router<handler> router_;
+    router<handler> router_;
     std::unordered_map<std::string, qos> wire_subscriptions_;
     std::vector<std::string> wire_calls_;
 };
 
-/// Extracts a named parameter from a delivery, the way an application unpacks a topic.
+/// @brief Extracts a named parameter from a delivery, the way an application unpacks a topic.
 [[nodiscard]]
 std::string param_of(const std::string& filter, const std::string& topic, const std::string& name) {
     const auto matched = pattern_of(filter).match_str(topic);
@@ -268,7 +278,7 @@ TEST(typed_subscription_tests, binding_a_parameter_narrows_the_wire_subscription
                            .value()
                            .bind_parameter("level", "error")
                            .value();
-    const auto [id, wire] = session.subscribe(bound.topic_pattern(), qos::AT_LEAST_ONCE, "auth errors");
+    const auto [id, wire] = session.subscribe(bound, qos::AT_LEAST_ONCE, "auth errors");
 
     // The registered filter is narrower than the template it came from.
     EXPECT_EQ(wire, "logs/auth/error/#");
@@ -318,7 +328,7 @@ TEST(typed_subscription_tests, unsubscribing_frees_the_broker_pattern_only_at_th
 
     EXPECT_TRUE(session.unsubscribe(other, dropped));
     EXPECT_TRUE(dropped.empty());
-    EXPECT_TRUE(session.unsubscribe(subscription_id { 2 }, dropped));
+    EXPECT_TRUE(session.unsubscribe(subscription_id { 1 }, dropped));
     EXPECT_EQ(dropped, "home/#");
     EXPECT_TRUE(session.wire_subscriptions().empty());
 }
@@ -337,4 +347,4 @@ TEST(typed_subscription_tests, shutting_down_leaves_nothing_behind) {
 }
 
 } // namespace
-} // namespace ba7lya::topic_engine::e2e
+} // namespace ba7lya::topic::e2e

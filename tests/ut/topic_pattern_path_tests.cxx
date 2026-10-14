@@ -1,7 +1,13 @@
+///
+/// @file topic_pattern_path_tests.cxx
+/// @author BA7LYA (1042140025@qq.com)
+/// @brief Unit tests for `topic_pattern_path`: parsing a filter into levels, binding its named parameters, and the two
+/// spellings a filter renders as.
+/// @version 0.1
+/// @date 2026-10-14
+/// @copyright Copyright (c) 2026
+///
 // SPDX-License-Identifier: MIT
-//
-// `topic_pattern_path`: parsing a filter into levels, binding its named parameters, and the two
-// spellings a filter renders as.
 
 #include <cstddef>
 #include <gtest/gtest.h>
@@ -12,16 +18,16 @@
 #include <vector>
 
 #include "test_support.hxx"
-#include "topic_engine.hxx"
+#include "topic.hxx"
 
-namespace ba7lya::topic_engine {
+namespace ba7lya::topic {
 namespace {
 
 using test::create_pattern;
 using test::matches;
 using test::with_parameters;
 
-/// A parsed filter is a precondition of every check below, so unwrap it once.
+/// @brief A parsed filter is a precondition of every check below, so unwrap it once.
 [[nodiscard]]
 topic_pattern_path parse_ok(const std::string& text) {
     auto parsed = topic_pattern_path::parse(text);
@@ -29,7 +35,7 @@ topic_pattern_path parse_ok(const std::string& text) {
     return std::move(parsed).value();
 }
 
-/// `usage` out of a rejected filter, or the empty string when the error is something else.
+/// @brief `usage` out of a rejected filter, or the empty string when the error is something else.
 [[nodiscard]]
 std::string usage_of(const topic_pattern_error& error) {
     const auto* usage = std::get_if<wildcard_usage_error>(&error);
@@ -581,4 +587,4 @@ TEST(topic_pattern_path_tests, copies_share_bindings_but_not_the_cache) {
 }
 
 } // namespace
-} // namespace ba7lya::topic_engine
+} // namespace ba7lya::topic

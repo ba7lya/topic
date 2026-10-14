@@ -1,10 +1,12 @@
+///
+/// @file topic_api_tests.cxx
+/// @author BA7LYA (1042140025@qq.com)
+/// @brief End-to-end test of the parse, match, extract and build flow through the public API, with no router.
+/// @version 0.1
+/// @date 2026-10-14
+/// @copyright Copyright (c) 2026
+///
 // SPDX-License-Identifier: MIT
-//
-// End to end: the parse → match → extract → build flow through the public API, with no router.
-//
-// These are the paths an application takes when it only needs the pattern half of the engine —
-// reading a topic, unpacking its parameters, and composing a topic to publish on. They are kept
-// out of the router suite so that they still run in a build with the router switched off.
 
 #include <gtest/gtest.h>
 #include <optional>
@@ -14,12 +16,12 @@
 #include <variant>
 #include <vector>
 
-#include "topic_engine.hxx"
+#include "topic.hxx"
 
-namespace ba7lya::topic_engine::e2e {
+namespace ba7lya::topic::e2e {
 namespace {
 
-/// Parses a filter, throwing when the test feeds it something invalid.
+/// @brief Parses a filter, throwing when the test feeds it something invalid.
 [[nodiscard]]
 topic_pattern_path pattern_of(const std::string& text) {
     auto parsed = topic_pattern_path::parse(text);
@@ -27,7 +29,7 @@ topic_pattern_path pattern_of(const std::string& text) {
     return std::move(parsed).value();
 }
 
-/// Matches `topic` against `filter`, throwing when the topic is not admitted.
+/// @brief Matches `topic` against `filter`, throwing when the topic is not admitted.
 [[nodiscard]]
 std::shared_ptr<const topic_match> matched_ok(const std::string& filter, const std::string& topic) {
     const auto matched = pattern_of(filter).match_str(topic);
@@ -201,7 +203,7 @@ TEST(topic_api_tests, a_cached_filter_answers_the_same_as_an_uncached_one) {
     ASSERT_TRUE(uncached);
     ASSERT_TRUE(cached);
     EXPECT_FALSE(uncached.value().caching().is_lru());
-#ifdef BA7LYA_TOPIC_ENGINE_NO_LRU_CACHE
+#ifdef BA7LYA_TOPIC_NO_LRU_CACHE
     // With the cache compiled out every strategy degrades to `no_cache()`, so the two agree.
     EXPECT_FALSE(cached.value().caching().is_lru());
 #else
@@ -247,4 +249,4 @@ TEST(topic_api_tests, a_copy_of_a_filter_gets_its_own_cache) {
 }
 
 } // namespace
-} // namespace ba7lya::topic_engine::e2e
+} // namespace ba7lya::topic::e2e

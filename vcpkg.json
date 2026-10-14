@@ -1,9 +1,9 @@
 {
-  "name": "ba7lya-topic-engine",
+  "name": "ba7lya-topic",
   "version": "0.2.1",
   "description": "MQTT topic matching, filtering and subscription routing",
   "license": "MIT",
-  "builtin-baseline": "e456309491fd875487bf02b8a0dca76c1b1b00cc",
+  "builtin-baseline": "44ccfd88b3eca6929d6d16398c7b19945c29a5f6",
   "dependencies": [
     "spdlog"
   ],
