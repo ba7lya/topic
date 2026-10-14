@@ -120,7 +120,7 @@ TEST(router_tests, two_templates_that_differ_only_in_a_parameter_name_share_a_su
 }
 
 TEST(router_tests, a_bound_parameter_registers_as_its_value) {
-    const auto bound = create_pattern("sensors/{id}/data").bind_parameter("id", "kitchen");
+    const auto bound = create_pattern("sensors/{id}/data").bind_param("id", "kitchen");
     ASSERT_TRUE(bound);
 
     string_router routed;
@@ -282,7 +282,7 @@ TEST(router_tests, resubscribe_topics_carry_the_highest_qos_of_the_pattern) {
 }
 
 TEST(router_tests, a_hash_only_filter_subscribes_as_hash) {
-    const auto bound = create_pattern("{rest:#}").bind_parameter("rest", "");
+    const auto bound = create_pattern("{rest:#}").bind_param("rest", "");
     ASSERT_TRUE(bound);
 
     string_router routed;

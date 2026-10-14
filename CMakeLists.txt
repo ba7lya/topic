@@ -63,7 +63,7 @@ target_sources(${PROJECT_NAME}
     PRIVATE
         src/cache.cxx
         src/error.cxx
-        src/matcher.cxx
+        src/filter.cxx
         src/pattern.cxx
         src/qos.cxx
 )
@@ -94,12 +94,14 @@ target_compile_options(${PROJECT_NAME} PRIVATE "$<$<CXX_COMPILER_ID:MSVC>:/utf-8
 set(${PROJECT_NAME}_PUBLIC_HEADERS
     include/cache.hxx
     include/error.hxx
+    include/filter.hxx
     include/matcher.hxx
     include/pattern.hxx
     include/qos.hxx
     include/result.hxx
     include/router.hxx
     include/topic.hxx
+    include/trie.hxx
 )
 
 install(

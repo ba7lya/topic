@@ -18,19 +18,19 @@
 #include <utility>
 #include <vector>
 
-#include "matcher.hxx"
+#include "trie.hxx"
 
 namespace ba7lya::topic::test {
 
-/// @brief The payload the matcher suites store: the set of subscription ids sitting on one pattern.
+/// @brief The payload the trie suites store: the set of subscription ids sitting on one pattern.
 /// @details A set is what the Rust tests used, and it satisfies `payload_container` through `empty()`.
 using ids = std::unordered_set<std::size_t>;
 
 /// @brief Every pattern in `root` paired with how many ids it holds, sorted for comparison.
-/// @details `collect_active_subscriptions` returns them in an unspecified order — the levels live in a hash map - so tests
-/// compare sorted sequences rather than raw container equality.
+/// @details `collect_active_subscriptions` returns them in an unspecified order — the levels live in a hash map - so
+/// tests compare sorted sequences rather than raw container equality.
 [[nodiscard]]
-inline std::vector<std::pair<std::string, std::size_t>> active_subscriptions(const topic_matcher_node<ids>& root) {
+inline std::vector<std::pair<std::string, std::size_t>> active_subscriptions(const trie<ids>& root) {
     std::vector<std::pair<std::string, std::size_t>> active;
     for (const auto& [pattern, payload] : root.collect_active_subscriptions()) {
         active.emplace_back(pattern.to_string(), payload->size());

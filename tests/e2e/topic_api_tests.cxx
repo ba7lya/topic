@@ -117,7 +117,7 @@ TEST(topic_api_tests, a_value_count_mismatch_is_refused) {
     const auto built = filter.format_topic({ "sensor" });
 
     ASSERT_FALSE(built);
-    const auto* mismatch = std::get_if<parameter_count_mismatch_error>(&built.error());
+    const auto* mismatch = std::get_if<param_count_mismatch_error>(&built.error());
     ASSERT_NE(mismatch, nullptr);
     EXPECT_EQ(mismatch->expected, 2U);
     EXPECT_EQ(mismatch->provided, 1U);
@@ -143,7 +143,7 @@ TEST(topic_api_tests, a_malformed_template_is_rejected_up_front) {
 
 TEST(topic_api_tests, a_hash_only_filter_is_the_root_template) {
     // `{rest:#}` bound to nothing collapses to a bare `#`, which must not keep a phantom level.
-    const auto bound = pattern_of("{rest:#}").bind_parameter("rest", "");
+    const auto bound = pattern_of("{rest:#}").bind_param("rest", "");
     ASSERT_TRUE(bound);
     EXPECT_EQ(bound.value().mqtt_pattern(), "#");
     EXPECT_TRUE(bound.value().contains_hash());
@@ -164,9 +164,9 @@ TEST(topic_api_tests, an_anonymous_wildcard_never_sees_a_dollar_topic) {
 
 TEST(topic_api_tests, binding_a_parameter_narrows_the_wire_pattern) {
     const auto filtered = pattern_of("sensors/{location}/{sensor_type}/{sensor_id}/data")
-                              .bind_parameter("location", "kitchen")
+                              .bind_param("location", "kitchen")
                               .value()
-                              .bind_parameter("sensor_type", "temperature")
+                              .bind_param("sensor_type", "temperature")
                               .value();
 
     EXPECT_EQ(filtered.mqtt_pattern(), "sensors/kitchen/temperature/+/data");
@@ -179,7 +179,7 @@ TEST(topic_api_tests, binding_a_parameter_narrows_the_wire_pattern) {
 }
 
 TEST(topic_api_tests, a_bound_parameter_is_matched_as_a_literal) {
-    const auto filtered = pattern_of("sensors/{location}/data").bind_parameter("location", "kitchen");
+    const auto filtered = pattern_of("sensors/{location}/data").bind_param("location", "kitchen");
 
     ASSERT_TRUE(filtered);
     EXPECT_TRUE(filtered.value().match_str("sensors/kitchen/data"));
@@ -242,7 +242,7 @@ TEST(topic_api_tests, a_copy_of_a_filter_gets_its_own_cache) {
     EXPECT_EQ(copy.topic_pattern(), original.value().topic_pattern());
 
     // The cache is per-instance, but the bindings travel with the copy.
-    const auto bound = original.value().bind_parameter("room", "kitchen");
+    const auto bound = original.value().bind_param("room", "kitchen");
     ASSERT_TRUE(bound);
     EXPECT_FALSE(original.value().bound_value("room").has_value()) << "binding returns a new filter";
     EXPECT_EQ(bound.value().bound_value("room").value(), "kitchen");

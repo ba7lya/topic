@@ -62,14 +62,14 @@ class typed_session {
 public:
     /// @brief Registers `filter` for `name` and subscribes on the broker exactly when the router asks.
     /// @details Returns the subscription id and the wire pattern, in that order, so a test can assert on
-/// what the broker was told without reaching into the router.
+    /// what the broker was told without reaching into the router.
     std::pair<subscription_id, std::string> subscribe(const std::string& filter, qos level, const std::string& name) {
         return subscribe(pattern_of(filter), level, name);
     }
 
     /// @brief Registers an already-built filter, bindings and all.
     /// @details The overload to reach for when the filter carries bound parameters: re-parsing its template
-/// would hand the router an unbound filter and quietly register the wider pattern.
+    /// would hand the router an unbound filter and quietly register the wider pattern.
     std::pair<subscription_id, std::string> subscribe(
         const topic_pattern_path& filter, qos level, const std::string& name
     ) {
@@ -97,7 +97,7 @@ public:
 
     /// @brief The handler names a delivered topic reaches, each paired with the payload that arrived.
     /// @details Payloads live in the router's own storage, so they are read through the subscriber pointer
-/// rather than copied out of the registry.
+    /// rather than copied out of the registry.
     [[nodiscard]]
     std::vector<delivery> deliver(const std::string& topic, const std::string& payload) const {
         const auto parsed = topic_path::parse(topic);
@@ -175,7 +175,7 @@ std::string param_of(const std::string& filter, const std::string& topic, const 
     if (!matched) { throw std::runtime_error("topic should match: " + topic + ": " + describe(matched.error())); }
 
     const auto value = matched.value()->named_param(name);
-    if (!value) { throw std::runtime_error("parameter should exist: " + name); }
+    if (!value) { throw std::runtime_error("param should exist: " + name); }
     return std::string(*value);
 }
 
@@ -274,9 +274,9 @@ TEST(typed_subscription_tests, binding_a_parameter_narrows_the_wire_subscription
 
     // A multi-tenant app binds the tenant away before it ever reaches the broker.
     const auto bound = pattern_of("logs/{service}/{level}/{details:#}")
-                           .bind_parameter("service", "auth")
+                           .bind_param("service", "auth")
                            .value()
-                           .bind_parameter("level", "error")
+                           .bind_param("level", "error")
                            .value();
     const auto [id, wire] = session.subscribe(bound, qos::AT_LEAST_ONCE, "auth errors");
 

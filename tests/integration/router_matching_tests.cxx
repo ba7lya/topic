@@ -254,7 +254,7 @@ TEST(router_delivery_tests, dollar_topics_reach_only_their_literal_subscribers) 
 
 TEST(router_delivery_tests, a_bound_parameter_narrows_delivery_to_one_topic) {
     session current;
-    const auto bound = create_pattern("sensors/{id}/data").bind_parameter("id", "kitchen");
+    const auto bound = create_pattern("sensors/{id}/data").bind_param("id", "kitchen");
     ASSERT_TRUE(bound);
     current.subscribe(bound.value(), qos::AT_MOST_ONCE, "kitchen only");
 
@@ -306,9 +306,9 @@ TEST(router_round_trip_tests, a_published_message_reaches_the_right_handlers) {
 TEST(router_round_trip_tests, the_wire_pattern_survives_a_full_registration_cycle) {
     session current;
     const auto bound = create_pattern("logs/{service}/{level}/{details:#}")
-                           .bind_parameter("service", "auth")
+                           .bind_param("service", "auth")
                            .value()
-                           .bind_parameter("level", "error")
+                           .bind_param("level", "error")
                            .value();
     const subscription_id id = current.subscribe(bound, qos::AT_LEAST_ONCE, "auth errors");
 

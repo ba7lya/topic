@@ -32,16 +32,16 @@ inline topic_pattern_path create_pattern(const std::string& text) {
     return std::move(parsed).value();
 }
 
-/// @brief Binds `parameters` into `pattern` in order, stopping at the first binding the filter rejects.
-/// @details The stand-in for the Rust original's `with_parameters` extension trait, which the tests here
+/// @brief Binds `params` into `pattern` in order, stopping at the first binding the filter rejects.
+/// @details The stand-in for the Rust original's `with_params` extension trait, which the tests here
 /// call on a plain function instead.
 [[nodiscard]]
-inline pattern_result<topic_pattern_path> with_parameters(
-    topic_pattern_path pattern, const std::vector<std::pair<std::string, std::string>>& parameters
+inline pattern_result<topic_pattern_path> with_params(
+    topic_pattern_path pattern, const std::vector<std::pair<std::string, std::string>>& params
 ) {
     topic_pattern_path current = std::move(pattern);
-    for (const auto& [name, value] : parameters) {
-        auto bound = current.bind_parameter(name, value);
+    for (const auto& [name, value] : params) {
+        auto bound = current.bind_param(name, value);
         if (!bound) { return bound.error(); }
         current = std::move(bound).value();
     }

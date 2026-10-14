@@ -12,12 +12,4 @@
 
 #include <string>
 
-namespace ba7lya::topic {
-
-std::string subscription_id::to_string() const { return "SubscriptionId(" + std::to_string(value) + ")"; }
-
-std::size_t subscription_id_hash::operator()(const subscription_id& id) const noexcept {
-    return std::hash<std::size_t> {}(id.value);
-}
-
-} // namespace ba7lya::topic
+namespace ba7lya::topic {} // namespace ba7lya::topic

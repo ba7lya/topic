@@ -207,14 +207,14 @@ The router is neither copyable nor thread-safe; one router belongs to one thread
 
 ### Parameter binding
 
-Binding narrows a template to a concrete subtree without parsing anything new. `bind_parameter` returns a new filter, leaving the original untouched, so a bound filter is safe to share.
+Binding narrows a template to a concrete subtree without parsing anything new. `bind_param` returns a new filter, leaving the original untouched, so a bound filter is safe to share.
 
 ```cpp
 const auto template_filter = topic_pattern_path::parse("sensors/{location}/{kind}/{id}/data").value();
 
-const auto filtered = template_filter.bind_parameter("location", "kitchen")
+const auto filtered = template_filter.bind_param("location", "kitchen")
                           .value()
-                          .bind_parameter("kind", "temperature")
+                          .bind_param("kind", "temperature")
                           .value();
 
 filtered.mqtt_pattern();              // sensors/kitchen/temperature/+/data
@@ -243,7 +243,7 @@ The same template that subscribes can build the topic to publish on:
 const auto filter = topic_pattern_path::parse("devices/{type}/{id}/command").value();
 
 filter.format_topic({ "sensor", "42" });   // devices/sensor/42/command
-filter.format_topic({ "sensor" });         // error: parameter_count_mismatch_error{2, 1}
+filter.format_topic({ "sensor" });         // error: param_count_mismatch_error{2, 1}
 ```
 
 `format_topic` rejects a filter containing `#` — a `#` swallows an unknown number of levels, so there is no sensible arity.

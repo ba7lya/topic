@@ -181,7 +181,7 @@ void show_filtered_subscription() {
     if (!template_path) { return; }
 
     const auto filtered
-        = template_path.value().bind_parameter("service", "auth").value().bind_parameter("level", "error").value();
+        = template_path.value().bind_param("service", "auth").value().bind_param("level", "error").value();
     std::cout << "  template : " << template_path.value().topic_pattern() << '\n';
     std::cout << "  filtered : " << filtered.mqtt_pattern() << '\n';
 

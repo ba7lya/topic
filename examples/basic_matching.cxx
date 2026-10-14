@@ -59,8 +59,7 @@ void show_matching(const std::vector<demo>& demos) {
         for (const std::string& topic : entry.topics) {
             const auto matched = filter.value().match_str(topic);
             if (!matched) {
-                const auto* excluded
-                    = std::get_if<ba7lya::topic::dollar_topic_exclusion_error>(&matched.error());
+                const auto* excluded = std::get_if<ba7lya::topic::dollar_topic_exclusion_error>(&matched.error());
                 const std::string why = excluded == nullptr ? describe(matched.error()) : "excluded ($ topic)";
                 std::cout << "    " << topic << " -> no (" << why << ")\n";
                 continue;
@@ -105,7 +104,7 @@ void show_binding() {
     if (!filter) { return; }
 
     const auto filtered
-        = filter.value().bind_parameter("location", "kitchen").value().bind_parameter("kind", "temperature").value();
+        = filter.value().bind_param("location", "kitchen").value().bind_param("kind", "temperature").value();
     std::cout << "  template   : " << filter.value().topic_pattern() << '\n';
     std::cout << "  filtered   : " << filtered.mqtt_pattern() << '\n';
     std::cout << "  bound value: " << filtered.bound_value("location").value_or("<unbound>") << '\n';
@@ -146,7 +145,7 @@ int main() {
     std::cout << "\n=== publishing ===\n";
     show_publishing();
 
-    std::cout << "\n=== binding parameters ===\n";
+    std::cout << "\n=== binding params ===\n";
     show_binding();
 
     std::cout << "\n=== rejected templates ===\n";

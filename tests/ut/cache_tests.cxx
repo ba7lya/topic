@@ -1,8 +1,8 @@
 ///
-/// @file cache_strategy_tests.cxx
+/// @file cache_tests.cxx
 /// @author BA7LYA (1042140025@qq.com)
-/// @brief Unit tests for `cache_strategy`: the capacity-is-the-state model, and the fallback path when the LRU cache is
-/// compiled out.
+/// @brief Unit tests for `cache.hxx`: the `cache_strategy` capacity-is-the-state model, and the fallback path when
+/// the LRU cache is compiled out.
 /// @version 0.1
 /// @date 2026-10-14
 /// @copyright Copyright (c) 2026
@@ -18,7 +18,7 @@
 namespace ba7lya::topic {
 namespace {
 
-TEST(cache_strategy_tests, new_with_capacity) {
+TEST(cache_tests, new_with_capacity) {
 #ifdef BA7LYA_TOPIC_NO_LRU_CACHE
     const cache_strategy strategy = cache_strategy::from_capacity(100);
     EXPECT_FALSE(strategy.is_lru());
@@ -30,19 +30,19 @@ TEST(cache_strategy_tests, new_with_capacity) {
 #endif
 }
 
-TEST(cache_strategy_tests, new_with_zero_capacity) {
+TEST(cache_tests, new_with_zero_capacity) {
     const cache_strategy strategy = cache_strategy::from_capacity(0);
     EXPECT_FALSE(strategy.is_lru());
     EXPECT_EQ(strategy.capacity(), std::nullopt);
 }
 
-TEST(cache_strategy_tests, default_is_no_cache) {
+TEST(cache_tests, default_is_no_cache) {
     const cache_strategy strategy = cache_strategy::no_cache();
     EXPECT_FALSE(strategy.is_lru());
     EXPECT_EQ(strategy.capacity(), std::nullopt);
 }
 
-TEST(cache_strategy_tests, capacity_of_lru) {
+TEST(cache_tests, capacity_of_lru) {
 #ifdef BA7LYA_TOPIC_NO_LRU_CACHE
     EXPECT_EQ(cache_strategy::lru(50).capacity(), std::nullopt);
 #else
@@ -51,13 +51,13 @@ TEST(cache_strategy_tests, capacity_of_lru) {
 #endif
 }
 
-TEST(cache_strategy_tests, lru_with_zero_capacity_is_no_cache) {
+TEST(cache_tests, lru_with_zero_capacity_is_no_cache) {
     const cache_strategy strategy = cache_strategy::lru(0);
     EXPECT_FALSE(strategy.is_lru());
     EXPECT_EQ(strategy.capacity(), std::nullopt);
 }
 
-TEST(cache_strategy_tests, copy_and_equality) {
+TEST(cache_tests, copy_and_equality) {
     const cache_strategy original = cache_strategy::from_capacity(16);
     const cache_strategy copy = original;
     EXPECT_EQ(original, copy);

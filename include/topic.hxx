@@ -12,10 +12,12 @@
 
 #include "cache.hxx"
 #include "error.hxx"
+#include "filter.hxx"
 #include "matcher.hxx"
 #include "pattern.hxx"
 #include "qos.hxx"
 #include "result.hxx"
+#include "trie.hxx"
 
 #ifndef BA7LYA_TOPIC_NO_ROUTER
 #include "router.hxx"

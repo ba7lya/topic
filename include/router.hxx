@@ -172,7 +172,7 @@ public:
     /// @brief Drops every subscription and resets the id counter.
     /// @details A shutdown hook: the caller is expected to have let the broker know first.
     void cleanup() {
-        matcher_ = topic_matcher_node<subscription_table> {};
+        matcher_ = topic_matcher<subscription_table> {};
         registry_.clear();
         next_id_ = 0;
     }
@@ -186,8 +186,8 @@ private:
     [[nodiscard]]
     const subscription_record* expect_record(const subscription_id& id) const;
 
-    /// @brief The trie of subscription payload tables.
-    topic_matcher_node<subscription_table> matcher_;
+    /// @brief The subscription index: the pattern trie and the matching walk over it.
+    topic_matcher<subscription_table> matcher_;
     /// @brief The pattern and QoS of every subscription, keyed by id.
     subscription_registry registry_;
     /// @brief The id to hand out next.
@@ -236,7 +236,7 @@ result<removal_outcome, router_error> router<T>::unsubscribe(subscription_id id)
 
     const std::vector<topic_pattern_item> resolved_segments = topic.resolve_bound_segments();
     const auto pruned = matcher_.update_node(resolved_segments, [id](subscription_table& table) { table.erase(id); });
-    if (!pruned) { return make_matching_failed_error(pruned.error()); }
+    if (!pruned) { return matching_failed_error { pruned.error() }; }
     return removal_outcome { pruned.value(), std::move(topic) };
 }
 

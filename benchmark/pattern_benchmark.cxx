@@ -69,11 +69,11 @@ void wire_pattern(State& state) {
 }
 
 /// @brief Binding a parameter, which returns a fresh filter rather than mutating one.
-void bind_parameter(State& state) {
+void bind_param(State& state) {
     const topic_pattern_path filter = topic_pattern_path::parse("home/{room}/{device}/temperature").value();
 
     for (auto _ : state) {
-        auto bound = filter.bind_parameter("room", "kitchen");
+        auto bound = filter.bind_param("room", "kitchen");
         ::benchmark::DoNotOptimize(bound);
     }
 }
@@ -111,7 +111,7 @@ void parse_topic(State& state) {
 BENCHMARK(parse_template);
 BENCHMARK(render_template);
 BENCHMARK(wire_pattern);
-BENCHMARK(bind_parameter);
+BENCHMARK(bind_param);
 BENCHMARK(format_topic);
 BENCHMARK(check_compatibility);
 BENCHMARK(parse_topic);

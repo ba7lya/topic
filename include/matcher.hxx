@@ -1,8 +1,8 @@
 ///
 /// @file matcher.hxx
 /// @author BA7LYA (1042140025@qq.com)
-/// @brief Topic names, the result of matching one against a filter, and the prefix-tree matcher
-/// that indexes filters.
+/// @brief The matching rule over the filter trie: which of the indexed filters a delivered topic name resolves
+/// to.
 /// @version 0.1
 /// @date 2026-10-14
 /// @copyright Copyright (c) 2026
@@ -13,19 +13,17 @@
 
 #include <concepts>
 #include <cstddef>
-#include <functional>
-#include <memory>
-#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "error.hxx"
+#include "filter.hxx"
 #include "pattern.hxx"
 #include "result.hxx"
+#include "trie.hxx"
 
 namespace ba7lya::topic {
 
@@ -36,150 +34,43 @@ std::string to_string(const topic_match& matched);
 /// @brief From the topic name's side: whether this first level puts the delivered name in
 /// the reserved `$SYS`/`$share` space that a leading wildcard must not reach.
 /// @details Only ever asked about level 0, which is where the exclusion applies; a `$` past the leading
-/// character is
-/// an ordinary literal. The filter side of the same rule is `topic_pattern_item::excludes_dollar_topic` and
-/// `topic_path::has_reserved_first_level`.
+/// character is an ordinary literal. The filter side of the same rule is `topic_pattern_item::excludes_dollar_topic`
+/// and `topic_path::has_reserved_first_level`.
 [[nodiscard]]
 inline bool topic_has_reserved_first_level(std::string_view first_segment) {
     return first_segment.starts_with('$');
 }
 
-/// @brief What a node may hold as a payload: a container that can say whether it is empty.
-/// @details The Rust original spells this as the `Len` trait, implemented for `HashSet` and `HashMap`. A
-/// concept
-/// does the same job here without type erasure, so the payload type stays fully visible to the optimizer.
-template<typename T>
-concept payload_container = std::default_initializable<T> && requires(const T& container) {
-    { container.empty() } -> std::convertible_to<bool>;
-};
-
 ///
-/// @brief Hashes a key the way `std::hash<std::string_view>` would, so a `std::string_view` level can be
-/// looked up in a `std::string`-keyed map without building a temporary string.
-/// @details Matching runs once per delivered message per subscription, so the allocation a converting
-/// lookup would
-/// cost is worth designing out. Both overloads agree on the value of a key, which is what makes the heterogeneous
-/// lookup sound.
-///
-struct transparent_string_hash {
-    /// @brief Marks the hash as usable for heterogeneous lookup.
-    using is_transparent = void;
-
-    /// @brief Hashes a view of the key.
-    [[nodiscard]]
-    std::size_t operator()(std::string_view text) const noexcept {
-        return std::hash<std::string_view> {}(text);
-    }
-
-    /// @brief Hashes an owning key; identical to the view overload for the same characters.
-    [[nodiscard]]
-    std::size_t operator()(const std::string& text) const noexcept {
-        return std::hash<std::string_view> {}(text);
-    }
-};
-
-///
-/// @brief One node of the topic matching tree, standing for a level of a topic path.
-/// @details Four slots, one per way a subscription can continue from here: a literal level's payload, the
-/// literal
-/// levels' subtrees, the `+` wildcard's subtree, and the `#` wildcard's payload. A `#` is always the last level of a
-/// filter, which is why it needs no subtree.
-/// @note Header-only by necessity: the payload type is a template parameter, so no translation unit can
-/// instantiate
-/// the members for it.
+/// @brief The subscription index: the filter trie, plus the matching rule that walks it.
+/// @details Holds a `trie` and owns no storage of its own. Insertion, pruning and enumeration are forwarded
+/// straight to the trie - they are structural questions - so callers keep talking to one object; what lives here is
+/// only the part that reads a delivered topic name, the reserved-`$` exclusion included.
+/// @note Header-only by necessity, like the trie it wraps.
 ///
 template<payload_container T>
-class topic_matcher_node {
+class topic_matcher {
 public:
-    topic_matcher_node() = default;
+    topic_matcher() = default;
 
-    topic_matcher_node(const topic_matcher_node&) = delete;
-    topic_matcher_node& operator=(const topic_matcher_node&) = delete;
-    topic_matcher_node(topic_matcher_node&&) noexcept = default;
-    topic_matcher_node& operator=(topic_matcher_node&&) noexcept = default;
+    topic_matcher(const topic_matcher&) = delete;
+    topic_matcher& operator=(const topic_matcher&) = delete;
+    topic_matcher(topic_matcher&&) noexcept = default;
+    topic_matcher& operator=(topic_matcher&&) noexcept = default;
 
-    ~topic_matcher_node() = default;
-
-    /// @brief Whether this node holds no payload and has no children, so its parent may drop it.
-    [[nodiscard]]
-    bool is_empty() const {
-        return (!exact_match_data_.has_value() || exact_match_data_->empty()) && exact_children_.empty()
-            && !single_level_wildcard_node_
-            && (!multi_level_wildcard_data_.has_value() || multi_level_wildcard_data_->empty());
-    }
+    ~topic_matcher() = default;
 
     /// @brief Returns the payload table for `topic_path`, creating it and any missing levels.
-    /// @details The returned reference stays valid until the node's subtree is modified: children live in
-    /// `std::unique_ptr`s, so creating a sibling table cannot move this one.
     [[nodiscard]]
     T& get_or_create_subscription_table(const topic_pattern_path& topic_path) {
-        topic_matcher_node* current = this;
-        for (const topic_pattern_item& segment : topic_path.resolve_bound_segments()) {
-            if (segment.is_literal()) {
-                current = &current->exact_child(segment.literal());
-                continue;
-            }
-            if (segment.is_plus()) {
-                if (!current->single_level_wildcard_node_) {
-                    current->single_level_wildcard_node_ = std::make_unique<topic_matcher_node>();
-                }
-                current = current->single_level_wildcard_node_.get();
-                continue;
-            }
-            // A `#` is the last level by construction, so its payload belongs to this node and
-            // the walk ends here.
-            if (!current->multi_level_wildcard_data_.has_value()) { current->multi_level_wildcard_data_.emplace(); }
-            return *current->multi_level_wildcard_data_;
-        }
-
-        if (!current->exact_match_data_.has_value()) { current->exact_match_data_.emplace(); }
-        return *current->exact_match_data_;
+        return trie_storage_.get_or_create_subscription_table(topic_path);
     }
 
     /// @brief Applies `update` to the payload table stored at `path`, pruning what it empties.
-    /// @details Returns whether the payload table at `path` came out empty — the question a router has to ask before it
-    /// tells a broker to drop the wire subscription, since two distinct patterns may share one node. The node a table
-    /// is dropped from is a separate matter: a callee prunes under itself whenever the caller reports the table gone,
-    /// and this node then drops the branch only if that left it with nothing at all.
-    /// @note A level of `path` that the tree does not have is an `invalid_segment_error`.
     template<typename F>
         requires std::invocable<F&, T&>
     result<bool, topic_matcher_error> update_node(std::span<const topic_pattern_item> path, F update) {
-        if (path.empty()) {
-            if (!exact_match_data_.has_value()) { return invalid_segment("no_data_for_empty_path", 0); }
-            update(*exact_match_data_);
-            if (!exact_match_data_->empty()) { return false; }
-            exact_match_data_.reset();
-            return true;
-        }
-
-        const topic_pattern_item& current_segment = path.front();
-        const std::span<const topic_pattern_item> rest = path.subspan(1);
-
-        if (current_segment.is_literal()) {
-            const auto child = exact_children_.find(current_segment.literal());
-            if (child == exact_children_.end()) { return invalid_segment(current_segment.literal(), 0); }
-            const auto pruned = child->second->update_node(rest, update);
-            if (!pruned) { return pruned.error(); }
-            // The level's table is gone, so drop the level itself — but only if the subtree below it
-            // has nothing left either, since a `#` payload or a sibling wildcard may still live on.
-            if (pruned.value() && child->second->is_empty()) { exact_children_.erase(child); }
-            return pruned.value();
-        }
-
-        if (current_segment.is_plus()) {
-            if (!single_level_wildcard_node_) { return invalid_segment("+", 0); }
-            const auto pruned = single_level_wildcard_node_->update_node(rest, update);
-            if (!pruned) { return pruned.error(); }
-            if (pruned.value() && single_level_wildcard_node_->is_empty()) { single_level_wildcard_node_.reset(); }
-            return pruned.value();
-        }
-
-        if (!multi_level_wildcard_data_.has_value()) { return invalid_segment("#", 0); }
-        update(*multi_level_wildcard_data_);
-        if (!multi_level_wildcard_data_->empty()) { return false; }
-        multi_level_wildcard_data_.reset();
-        return true;
+        return trie_storage_.update_node(path, update);
     }
 
     /// @brief Every payload whose pattern matches `topic`.
@@ -188,99 +79,60 @@ public:
     [[nodiscard]]
     std::vector<const T*> find_by_path(const topic_path& topic) const {
         std::vector<const T*> matching_payloads;
-        collect_matching_subscriptions(topic.segments(), true, matching_payloads);
+        collect_matching_subscriptions(trie_storage_, topic.segments(), true, matching_payloads);
         return matching_payloads;
     }
 
-    /// @brief Every `(pattern, payload)` pair in the tree, by walking every branch.
-    /// @details A diagnostic helper for asserting what a router actually holds; production code that wants
-    /// the active subscriptions should ask the router, which keeps a flat table and is cheaper. The order is
-    /// unspecified — the levels live in a hash map — so compare the result as a set.
+    /// @brief Every `(pattern, payload)` pair in the index; a diagnostic pass-through to the trie.
     [[nodiscard]]
     std::vector<std::pair<topic_pattern_path, const T*>> collect_active_subscriptions() const {
-        std::vector<std::pair<topic_pattern_path, const T*>> collected;
-        std::vector<topic_pattern_item> current_path;
-        collect_active_subscriptions_internal(current_path, collected);
-        return collected;
+        return trie_storage_.collect_active_subscriptions();
+    }
+
+    /// @brief The index the matcher walks.
+    /// @note Named `storage` rather than `trie`, and the member `trie_storage_` rather than `trie_`: a member
+    /// function carrying the type's name would hide the type `trie` inside this class.
+    [[nodiscard]]
+    const trie<T>& storage() const noexcept {
+        return trie_storage_;
     }
 
 private:
-    /// @brief Returns the subtree for a literal level, creating it if absent.
-    [[nodiscard]]
-    topic_matcher_node& exact_child(const std::string& segment) {
-        auto& child = exact_children_[segment];
-        if (!child) { child = std::make_unique<topic_matcher_node>(); }
-        return *child;
-    }
-
-    /// @brief Walks `topic`, appending every payload that matches.
+    /// @brief Walks `node`, appending every payload that matches.
     /// @details `at_root` marks the first level, where a filter whose first level is a wildcard must not
-    /// match a
-    /// reserved `$`-prefixed topic name — the topic name knows whether it has one, and skipping both wildcard branches
-    /// here leaves the literal branch above intact, so `$SYS/...` subscriptions still resolve.
+    /// match a reserved `$`-prefixed topic name — the topic name knows whether it has one, and skipping both wildcard
+    /// branches here leaves the literal branch above intact, so `$SYS/...` subscriptions still resolve.
     void collect_matching_subscriptions(
-        std::span<const std::string_view> topic, bool at_root, std::vector<const T*>& matching_payloads
+        const trie<T>& node, std::span<const std::string_view> topic, bool at_root,
+        std::vector<const T*>& matching_payloads
     ) const {
         if (topic.empty()) {
-            if (exact_match_data_.has_value()) { matching_payloads.push_back(&*exact_match_data_); }
-            if (multi_level_wildcard_data_.has_value()) { matching_payloads.push_back(&*multi_level_wildcard_data_); }
+            if (const T* payload = node.exact_match_payload(); payload != nullptr) {
+                matching_payloads.push_back(payload);
+            }
+            if (const T* payload = node.multi_level_wildcard_payload(); payload != nullptr) {
+                matching_payloads.push_back(payload);
+            }
             return;
         }
 
         const std::string_view segment = topic.front();
         const std::span<const std::string_view> remaining = topic.subspan(1);
 
-        if (const auto child = exact_children_.find(segment); child != exact_children_.end()) {
-            child->second->collect_matching_subscriptions(remaining, false, matching_payloads);
+        if (const trie<T>* child = node.exact_child(segment); child != nullptr) {
+            collect_matching_subscriptions(*child, remaining, false, matching_payloads);
         }
         if (at_root && topic_has_reserved_first_level(segment)) { return; }
-        if (single_level_wildcard_node_) {
-            single_level_wildcard_node_->collect_matching_subscriptions(remaining, false, matching_payloads);
+        if (const trie<T>* child = node.single_level_wildcard_child(); child != nullptr) {
+            collect_matching_subscriptions(*child, remaining, false, matching_payloads);
         }
-        if (multi_level_wildcard_data_.has_value()) { matching_payloads.push_back(&*multi_level_wildcard_data_); }
-    }
-
-    /// @brief Walks the subtree, rebuilding the pattern each payload was reached by.
-    void collect_active_subscriptions_internal(
-        std::vector<topic_pattern_item>& current_path, std::vector<std::pair<topic_pattern_path, const T*>>& collected
-    ) const {
-        auto append = [&current_path, &collected](const T* payload) {
-            auto rebuilt = topic_pattern_path::make_from_segments(current_path);
-            // Unreachable: every pattern in the tree was validated before it was inserted.
-            if (!rebuilt) { return; }
-            collected.emplace_back(std::move(rebuilt).value(), payload);
-        };
-
-        if (exact_match_data_.has_value()) { append(&*exact_match_data_); }
-        if (multi_level_wildcard_data_.has_value()) {
-            current_path.push_back(topic_pattern_item::make_hash());
-            append(&*multi_level_wildcard_data_);
-            current_path.pop_back();
-        }
-        if (single_level_wildcard_node_) {
-            current_path.push_back(topic_pattern_item::make_plus());
-            single_level_wildcard_node_->collect_active_subscriptions_internal(current_path, collected);
-            current_path.pop_back();
-        }
-        for (const auto& [segment, child] : exact_children_) {
-            current_path.push_back(topic_pattern_item::make_str(segment));
-            child->collect_active_subscriptions_internal(current_path, collected);
-            current_path.pop_back();
+        if (const T* payload = node.multi_level_wildcard_payload(); payload != nullptr) {
+            matching_payloads.push_back(payload);
         }
     }
 
-    /// @brief Payload for a subscription whose pattern ends at this node.
-    std::optional<T> exact_match_data_;
-    /// @brief Subtrees for literal next levels.
-    /// @details The subtree is held by pointer rather than by value: a node may not contain an incomplete type by
-    /// value, and the
-    /// indirection also keeps a payload table's address stable while its siblings are created.
-    std::unordered_map<std::string, std::unique_ptr<topic_matcher_node>, transparent_string_hash, std::equal_to<>>
-        exact_children_;
-    /// @brief Subtree for a `+` level.
-    std::unique_ptr<topic_matcher_node> single_level_wildcard_node_;
-    /// @brief Payload for a pattern that ends in `#`.
-    std::optional<T> multi_level_wildcard_data_;
+    /// @brief The filter trie this matcher walks.
+    trie<T> trie_storage_;
 };
 
 } // namespace ba7lya::topic

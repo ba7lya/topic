@@ -1,18 +1,19 @@
 ///
-/// @file topic_pattern_path_tests.cxx
+/// @file filter_tests.cxx
 /// @author BA7LYA (1042140025@qq.com)
-/// @brief Unit tests for `topic_pattern_path`: parsing a filter into levels, binding its named parameters, and the two
-/// spellings a filter renders as.
+/// @brief Unit tests for `filter.hxx`: `topic_pattern_item` and `topic_pattern_path` - parsing one filter level,
+/// parsing a whole filter into levels, binding its named parameters, and the two spellings a filter renders as.
 /// @version 0.1
 /// @date 2026-10-14
 /// @copyright Copyright (c) 2026
 ///
 // SPDX-License-Identifier: MIT
 
-#include <cstddef>
 #include <gtest/gtest.h>
+#include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -24,8 +25,174 @@ namespace ba7lya::topic {
 namespace {
 
 using test::create_pattern;
+
+[[nodiscard]]
+std::string describe_error(const topic_pattern_error& error) {
+    return describe(error);
+}
+
+TEST(topic_pattern_item_tests, literal_string_item) {
+    const auto parsed = topic_pattern_item::parse("sensors");
+    ASSERT_TRUE(parsed);
+    const topic_pattern_item& item = parsed.value();
+
+    EXPECT_EQ(item, topic_pattern_item::make_str("sensors"));
+    EXPECT_EQ(item.as_str(), "sensors");
+    EXPECT_EQ(item.as_wildcard(), "sensors");
+    EXPECT_EQ(item.param_name(), std::nullopt);
+    EXPECT_FALSE(item.is_wildcard());
+}
+
+TEST(topic_pattern_item_tests, anonymous_plus_wildcard) {
+    const auto parsed = topic_pattern_item::parse("+");
+    ASSERT_TRUE(parsed);
+    const topic_pattern_item& item = parsed.value();
+
+    EXPECT_EQ(item, topic_pattern_item::make_plus());
+    EXPECT_EQ(item.as_str(), "+");
+    EXPECT_EQ(item.as_wildcard(), "+");
+    EXPECT_EQ(item.param_name(), std::nullopt);
+    EXPECT_TRUE(item.is_wildcard());
+    EXPECT_TRUE(item.is_plus());
+    EXPECT_FALSE(item.is_hash());
+}
+
+TEST(topic_pattern_item_tests, anonymous_hash_wildcard) {
+    const auto parsed = topic_pattern_item::parse("#");
+    ASSERT_TRUE(parsed);
+    const topic_pattern_item& item = parsed.value();
+
+    EXPECT_EQ(item, topic_pattern_item::make_hash());
+    EXPECT_EQ(item.as_str(), "#");
+    EXPECT_EQ(item.as_wildcard(), "#");
+    EXPECT_EQ(item.param_name(), std::nullopt);
+    EXPECT_TRUE(item.is_wildcard());
+    EXPECT_TRUE(item.is_hash());
+    EXPECT_FALSE(item.is_plus());
+}
+
+TEST(topic_pattern_item_tests, named_plus_wildcard) {
+    const auto parsed = topic_pattern_item::parse("{sensor_id}");
+    ASSERT_TRUE(parsed);
+    const topic_pattern_item& item = parsed.value();
+
+    ASSERT_TRUE(item.is_plus());
+    EXPECT_EQ(item.param_name(), std::optional<std::string> { "sensor_id" });
+    EXPECT_EQ(item.as_str(), "+");
+    EXPECT_EQ(item.as_wildcard(), "{sensor_id}");
+    EXPECT_TRUE(item.is_wildcard());
+}
+
+TEST(topic_pattern_item_tests, named_hash_wildcard) {
+    const auto parsed = topic_pattern_item::parse("{details:#}");
+    ASSERT_TRUE(parsed);
+    const topic_pattern_item& item = parsed.value();
+
+    ASSERT_TRUE(item.is_hash());
+    EXPECT_EQ(item.param_name(), std::optional<std::string> { "details" });
+    EXPECT_EQ(item.as_str(), "#");
+    EXPECT_EQ(item.as_wildcard(), "{details:#}");
+    EXPECT_TRUE(item.is_wildcard());
+}
+
+// --- levels that look bracket-ish but are literals ---
+
+TEST(topic_pattern_item_tests, malformed_brackets_are_literals) {
+    // A brace without its partner is not a parameter, so the level stays literal byte for byte.
+    for (const std::string_view text : { "{param", "param}", "{{param}}" }) {
+        const auto parsed = topic_pattern_item::parse(text);
+        ASSERT_TRUE(parsed) << text;
+        EXPECT_FALSE(parsed.value().is_wildcard()) << text;
+        EXPECT_EQ(parsed.value().as_str(), text) << text;
+    }
+}
+
+TEST(topic_pattern_item_tests, empty_string_segment) {
+    const auto parsed = topic_pattern_item::parse("");
+    ASSERT_TRUE(parsed);
+    EXPECT_EQ(parsed.value(), topic_pattern_item::make_str(""));
+    EXPECT_EQ(parsed.value().as_str(), "");
+    EXPECT_FALSE(parsed.value().is_wildcard());
+}
+
+TEST(topic_pattern_item_tests, unicode_and_special_characters) {
+    const auto unicode = topic_pattern_item::parse("сенсори");
+    ASSERT_TRUE(unicode);
+    EXPECT_EQ(unicode.value().as_str(), "сенсори");
+    EXPECT_FALSE(unicode.value().is_wildcard());
+
+    const auto special = topic_pattern_item::parse("device-123@home.local");
+    ASSERT_TRUE(special);
+    EXPECT_EQ(special.value().as_str(), "device-123@home.local");
+    EXPECT_FALSE(special.value().is_wildcard());
+}
+
+// --- rejected levels ---
+
+TEST(topic_pattern_item_tests, empty_named_wildcards_are_usage_errors) {
+    for (const std::string_view text : { "{}", "{:#}" }) {
+        const auto parsed = topic_pattern_item::parse(text);
+        ASSERT_FALSE(parsed) << text;
+        const auto* usage = std::get_if<wildcard_usage_error>(&parsed.error());
+        ASSERT_NE(usage, nullptr) << text;
+        EXPECT_EQ(usage->usage, text);
+    }
+}
+
+TEST(topic_pattern_item_tests, stray_wildcards_are_usage_errors) {
+    // A `+` or `#` glued to text is neither a wildcard level nor a literal one.
+    for (const std::string_view text : { "text+more", "text#more", "++", "##", "a+b", "a#b" }) {
+        const auto parsed = topic_pattern_item::parse(text);
+        ASSERT_FALSE(parsed) << text;
+        const auto* usage = std::get_if<wildcard_usage_error>(&parsed.error());
+        ASSERT_NE(usage, nullptr) << text;
+        EXPECT_EQ(usage->usage, text);
+    }
+}
+
+// --- value semantics ---
+
+TEST(topic_pattern_item_tests, equality_ignores_parameter_names) {
+    const auto named = topic_pattern_item::parse("{id}");
+    const auto anonymous = topic_pattern_item::parse("+");
+    ASSERT_TRUE(named);
+    ASSERT_TRUE(anonymous);
+
+    // `{id}` and `+` are the same level for compatibility purposes, but differ in their naming.
+    EXPECT_EQ(named.value(), anonymous.value());
+    EXPECT_NE(named.value().param_name(), anonymous.value().param_name());
+    EXPECT_NE(named.value(), topic_pattern_item::make_hash());
+    EXPECT_NE(topic_pattern_item::make_str("a"), topic_pattern_item::make_str("b"));
+}
+
+TEST(topic_pattern_item_tests, clone_and_equality) {
+    const topic_pattern_item original = topic_pattern_item::make_named_plus("test");
+    const topic_pattern_item copy = original;
+
+    EXPECT_EQ(original, copy);
+    EXPECT_EQ(original.param_name(), copy.param_name());
+}
+
+TEST(topic_pattern_item_tests, named_wildcards_accept_underscores_and_digits) {
+    for (const std::string& name : { std::string("sensor_id_123"), std::string("param123") }) {
+        const auto parsed = topic_pattern_item::parse("{" + name + "}");
+        ASSERT_TRUE(parsed) << name;
+        EXPECT_EQ(parsed.value().param_name(), std::optional<std::string> { name });
+        EXPECT_EQ(parsed.value().as_wildcard(), "{" + name + "}");
+    }
+}
+
+TEST(topic_pattern_item_tests, describes_errors) {
+    const auto parsed = topic_pattern_item::parse("a+b");
+    ASSERT_FALSE(parsed);
+    EXPECT_NE(describe_error(parsed.error()).find("a+b"), std::string::npos);
+}
+
+// --- topic_pattern_path ---
+
+using test::create_pattern;
 using test::matches;
-using test::with_parameters;
+using test::with_params;
 
 /// @brief A parsed filter is a precondition of every check below, so unwrap it once.
 [[nodiscard]]
@@ -178,7 +345,7 @@ TEST(topic_pattern_path_tests, mqtt_pattern_anonymises_named_wildcards) {
 // --- binding parameters ---
 
 TEST(topic_pattern_path_tests, binds_a_single_parameter) {
-    const auto bound = with_parameters(
+    const auto bound = with_params(
         create_pattern("sensors/{sensor_id}/data"), {
                                                         { "sensor_id", "123" }
     }
@@ -190,7 +357,7 @@ TEST(topic_pattern_path_tests, binds_a_single_parameter) {
 }
 
 TEST(topic_pattern_path_tests, binds_several_parameters) {
-    const auto bound = with_parameters(
+    const auto bound = with_params(
         create_pattern("buildings/{building}/floors/{floor}/rooms/{room}"), {
                                                                                 { "building", "A"       },
                                                                                 { "floor",    "2"       },
@@ -202,7 +369,7 @@ TEST(topic_pattern_path_tests, binds_several_parameters) {
 }
 
 TEST(topic_pattern_path_tests, leaves_unbound_parameters_as_wildcards) {
-    const auto bound = with_parameters(
+    const auto bound = with_params(
         create_pattern("sensors/{location}/{sensor_type}/{sensor_id}/data"), {
                                                                                  { "sensor_type", "temperature" }
     }
@@ -213,7 +380,7 @@ TEST(topic_pattern_path_tests, leaves_unbound_parameters_as_wildcards) {
 }
 
 TEST(topic_pattern_path_tests, anonymous_wildcards_are_not_substituted) {
-    const auto bound = with_parameters(
+    const auto bound = with_params(
         create_pattern("sensors/+/data/{measurement}"), {
                                                             { "measurement", "temperature" }
     }
@@ -223,7 +390,7 @@ TEST(topic_pattern_path_tests, anonymous_wildcards_are_not_substituted) {
 }
 
 TEST(topic_pattern_path_tests, mixed_named_and_anonymous_wildcards) {
-    const auto bound = with_parameters(
+    const auto bound = with_params(
         create_pattern("devices/{device_type}/+/status/{status_type}"), {
                                                                             { "device_type", "sensor" },
                                                                             { "status_type", "online" }
@@ -235,7 +402,7 @@ TEST(topic_pattern_path_tests, mixed_named_and_anonymous_wildcards) {
 }
 
 TEST(topic_pattern_path_tests, hash_wildcards_survive_binding) {
-    const auto plain_hash = with_parameters(
+    const auto plain_hash = with_params(
         create_pattern("logs/{service}/#"), {
                                                 { "service", "auth" }
     }
@@ -244,7 +411,7 @@ TEST(topic_pattern_path_tests, hash_wildcards_survive_binding) {
     EXPECT_EQ(plain_hash.value().mqtt_pattern(), "logs/auth/#");
 
     // A named `#` keeps its template spelling but renders as a bare `#` on the wire.
-    const auto named_hash = with_parameters(
+    const auto named_hash = with_params(
         create_pattern("events/{category}/{details:#}"), {
                                                              { "category", "alerts" }
     }
@@ -257,13 +424,13 @@ TEST(topic_pattern_path_tests, hash_wildcards_survive_binding) {
 TEST(topic_pattern_path_tests, binding_is_order_independent) {
     const topic_pattern_path pattern = create_pattern("a/{first}/b/{second}/c");
 
-    const auto forwards = with_parameters(
+    const auto forwards = with_params(
         pattern, {
                      { "first",  "1" },
                      { "second", "2" }
     }
     );
-    const auto backwards = with_parameters(
+    const auto backwards = with_params(
         pattern, {
                      { "second", "2" },
                      { "first",  "1" }
@@ -276,33 +443,33 @@ TEST(topic_pattern_path_tests, binding_is_order_independent) {
 }
 
 TEST(topic_pattern_path_tests, rebinding_replaces_the_value) {
-    const auto once = with_parameters(
+    const auto once = with_params(
         create_pattern("sensors/{id}/data"), {
                                                  { "id", "first" }
     }
     );
     ASSERT_TRUE(once);
-    const auto twice = with_parameters(
+    const auto twice = with_params(
         once.value(), {
                           { "id", "second" }
     }
     );
     ASSERT_TRUE(twice);
     EXPECT_EQ(twice.value().mqtt_pattern(), "sensors/second/data");
-    EXPECT_EQ(twice.value().parameter_bindings()->size(), 1U);
+    EXPECT_EQ(twice.value().param_bindings()->size(), 1U);
 }
 
 TEST(topic_pattern_path_tests, binding_no_parameters_returns_the_same_filter) {
     const topic_pattern_path pattern = create_pattern("sensors/{sensor_id}/data");
-    const auto unchanged = with_parameters(pattern, {});
+    const auto unchanged = with_params(pattern, {});
     ASSERT_TRUE(unchanged);
     EXPECT_EQ(unchanged.value().topic_pattern(), pattern.topic_pattern());
     EXPECT_EQ(unchanged.value().mqtt_pattern(), pattern.mqtt_pattern());
-    EXPECT_EQ(unchanged.value().parameter_bindings(), std::nullopt);
+    EXPECT_EQ(unchanged.value().param_bindings(), std::nullopt);
 }
 
 TEST(topic_pattern_path_tests, unknown_parameter_is_a_usage_error) {
-    const auto bound = with_parameters(
+    const auto bound = with_params(
         create_pattern("sensors/{sensor_id}/data"), {
                                                         { "nonexistent", "value" }
     }
@@ -312,7 +479,7 @@ TEST(topic_pattern_path_tests, unknown_parameter_is_a_usage_error) {
 }
 
 TEST(topic_pattern_path_tests, a_wildcard_free_pattern_binds_nothing) {
-    const auto bound = with_parameters(
+    const auto bound = with_params(
         create_pattern("static/topic/path"), {
                                                  { "nonexistent", "value" }
     }
@@ -322,7 +489,7 @@ TEST(topic_pattern_path_tests, a_wildcard_free_pattern_binds_nothing) {
 }
 
 TEST(topic_pattern_path_tests, mixed_valid_and_invalid_parameters_fail_on_the_invalid_one) {
-    const auto bound = with_parameters(
+    const auto bound = with_params(
         create_pattern("sensors/{sensor_id}/data/{type}"), {
                                                                { "sensor_id",     "123"   },
                                                                { "invalid_param", "value" }
@@ -333,7 +500,7 @@ TEST(topic_pattern_path_tests, mixed_valid_and_invalid_parameters_fail_on_the_in
 }
 
 TEST(topic_pattern_path_tests, a_single_level_parameter_pattern) {
-    const auto bound = with_parameters(
+    const auto bound = with_params(
         create_pattern("{param}"), {
                                        { "param", "value" }
     }
@@ -344,7 +511,7 @@ TEST(topic_pattern_path_tests, a_single_level_parameter_pattern) {
 }
 
 TEST(topic_pattern_path_tests, values_may_be_empty_or_awkward) {
-    const auto empty = with_parameters(
+    const auto empty = with_params(
         create_pattern("prefix/{param}/suffix"), {
                                                      { "param", "" }
     }
@@ -352,7 +519,7 @@ TEST(topic_pattern_path_tests, values_may_be_empty_or_awkward) {
     ASSERT_TRUE(empty);
     EXPECT_EQ(empty.value().mqtt_pattern(), "prefix//suffix");
 
-    const auto special = with_parameters(
+    const auto special = with_params(
         create_pattern("devices/{device_id}/data"), {
                                                         { "device_id", "temp-sensor@home.local" }
     }
@@ -360,7 +527,7 @@ TEST(topic_pattern_path_tests, values_may_be_empty_or_awkward) {
     ASSERT_TRUE(special);
     EXPECT_EQ(special.value().mqtt_pattern(), "devices/temp-sensor@home.local/data");
 
-    const auto unicode = with_parameters(
+    const auto unicode = with_params(
         create_pattern("пристрої/{тип}/статус"), {
                                                      { "тип", "сенсор" }
     }
@@ -370,7 +537,7 @@ TEST(topic_pattern_path_tests, values_may_be_empty_or_awkward) {
 }
 
 TEST(topic_pattern_path_tests, bindings_are_readable_back) {
-    const auto bound = with_parameters(
+    const auto bound = with_params(
         create_pattern("a/{first}/b/{second}"), {
                                                     { "first",  "1" },
                                                     { "second", "2" }
@@ -378,7 +545,7 @@ TEST(topic_pattern_path_tests, bindings_are_readable_back) {
     );
     ASSERT_TRUE(bound);
 
-    const auto bindings = bound.value().parameter_bindings();
+    const auto bindings = bound.value().param_bindings();
     ASSERT_TRUE(bindings.has_value());
     ASSERT_EQ(bindings->size(), 2U);
     EXPECT_EQ((*bindings)[0], std::make_pair(std::string("first"), std::string("1")));
@@ -389,7 +556,7 @@ TEST(topic_pattern_path_tests, bindings_are_readable_back) {
 }
 
 TEST(topic_pattern_path_tests, resolved_segments_carry_the_bound_values) {
-    const auto bound = with_parameters(
+    const auto bound = with_params(
         create_pattern("sensors/{id}/+"), {
                                               { "id", "kitchen" }
     }
@@ -408,7 +575,7 @@ TEST(topic_pattern_path_tests, cache_strategy_survives_binding) {
     ASSERT_TRUE(parsed);
     EXPECT_EQ(parsed.value().caching().capacity(), std::optional<std::size_t> { 50 });
 
-    const auto bound = with_parameters(
+    const auto bound = with_params(
         parsed.value(), {
                             { "id", "123" }
     }
@@ -441,14 +608,14 @@ TEST(topic_pattern_path_tests, rejects_formatting_a_hash_pattern) {
 TEST(topic_pattern_path_tests, rejects_a_value_count_mismatch) {
     const auto too_few = parse_ok("sensors/+/data/+").format_topic({ "kitchen" });
     ASSERT_FALSE(too_few);
-    const auto* mismatch = std::get_if<parameter_count_mismatch_error>(&too_few.error());
+    const auto* mismatch = std::get_if<param_count_mismatch_error>(&too_few.error());
     ASSERT_NE(mismatch, nullptr);
     EXPECT_EQ(mismatch->expected, 2U);
     EXPECT_EQ(mismatch->provided, 1U);
 
     const auto too_many = parse_ok("sensors/+/data").format_topic({ "a", "b" });
     ASSERT_FALSE(too_many);
-    EXPECT_TRUE(std::holds_alternative<parameter_count_mismatch_error>(too_many.error()));
+    EXPECT_TRUE(std::holds_alternative<param_count_mismatch_error>(too_many.error()));
 }
 
 // --- compatibility ---
@@ -470,7 +637,7 @@ TEST(topic_pattern_path_tests, incompatible_patterns_differ_in_their_wildcards) 
 // --- integration: patterns from the Rust suite's real-world shapes ---
 
 TEST(topic_pattern_path_integration_tests, sensor_reading_pattern) {
-    const auto bound = with_parameters(
+    const auto bound = with_params(
         create_pattern("typed/{room}/pl/{sensor_id}/some/{temp}"), {
                                                                        { "room",      "kitchen"      },
                                                                        { "sensor_id", "floor_sensor" },
@@ -482,7 +649,7 @@ TEST(topic_pattern_path_integration_tests, sensor_reading_pattern) {
 }
 
 TEST(topic_pattern_path_integration_tests, iot_telemetry_pattern) {
-    const auto bound = with_parameters(
+    const auto bound = with_params(
         create_pattern("iot/{building}/{floor}/devices/{device_type}/{device_id}/telemetry/{metric}"),
         {
             { "building",    "office-a"    },
@@ -497,7 +664,7 @@ TEST(topic_pattern_path_integration_tests, iot_telemetry_pattern) {
 }
 
 TEST(topic_pattern_path_integration_tests, log_aggregation_pattern) {
-    const auto bound = with_parameters(
+    const auto bound = with_params(
         create_pattern("logs/{service}/{level}/{details:#}"), {
                                                                   { "service", "auth-service" },
                                                                   { "level",   "error"        }
@@ -533,7 +700,7 @@ TEST(topic_pattern_path_dollar_tests, a_dollar_below_the_first_level_is_ordinary
 TEST(topic_pattern_path_dollar_tests, a_parameter_bound_to_a_dollar_value_is_a_literal) {
     // Binding the first parameter resolves the level, so the trie sees an exact child and the
     // exclusion no longer applies.
-    const auto bound = create_pattern("{svc}/data").bind_parameter("svc", "$SYS");
+    const auto bound = create_pattern("{svc}/data").bind_param("svc", "$SYS");
     ASSERT_TRUE(bound);
     EXPECT_TRUE(bound.value().match_str("$SYS/data"));
 
@@ -574,7 +741,7 @@ TEST(topic_pattern_path_tests, one_topic_matched_against_a_shared_topic_path) {
 }
 
 TEST(topic_pattern_path_tests, copies_share_bindings_but_not_the_cache) {
-    const auto bound = with_parameters(
+    const auto bound = with_params(
         create_pattern("sensors/{id}/data"), {
                                                  { "id", "kitchen" }
     }

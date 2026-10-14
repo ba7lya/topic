@@ -15,16 +15,18 @@ target_link_libraries(topic_test_support INTERFACE GTest::gtest GTest::gtest_mai
 
 # The trie and the router exist only when the router feature is on, so the suites that exercise them
 # are gated the same way the library sources are.
+# Each suite is named after the library source it exercises, so a failing case names both the kind of
+# test and the unit at fault.
 set(_topic_ut_sources
-    ut/cache_strategy_tests.cxx
+    ut/cache_tests.cxx
+    ut/filter_tests.cxx
     ut/qos_tests.cxx
     ut/topic_match_tests.cxx
-    ut/topic_pattern_item_tests.cxx
-    ut/topic_pattern_path_tests.cxx
+    ut/topic_path_tests.cxx
 )
 
 if(${PROJECT_NAME}_ROUTER)
-    list(APPEND _topic_ut_sources ut/topic_matcher_tests.cxx ut/router_tests.cxx)
+    list(APPEND _topic_ut_sources ut/matcher_tests.cxx ut/trie_tests.cxx ut/router_tests.cxx)
 endif()
 
 # --- unit tests: one unit at a time, no I/O ---
