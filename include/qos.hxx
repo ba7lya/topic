@@ -18,8 +18,9 @@ namespace ba7lya::topic {
 
 ///
 /// @brief Delivery guarantees, weakest first.
-/// @details The numeric values are the wire values a broker speaks, so a level can be handed to a client library unchanged.
-/// The numeric values are the wire values a broker speaks, so a level can be handed to a client library unchanged.
+/// @details The numeric values are the wire values a broker speaks, so a level can be handed to a client library
+/// unchanged. The numeric values are the wire values a broker speaks, so a level can be handed to a client library
+/// unchanged.
 ///
 enum class qos : std::uint8_t {
     AT_MOST_ONCE = 0,  ///< Best-effort delivery, fire and forget.
@@ -31,9 +32,10 @@ enum class qos : std::uint8_t {
 /// @param lhs The left level.
 /// @param rhs The right level.
 /// @return The three-way comparison of the two wire values.
-/// @details A single three-way operator is all the class needs: a scoped enum has no built-in ordering, but a comparison
-/// A single three-way operator is all the class needs: a scoped enum has no built-in ordering, but a comparison
-/// category in hand gives `==`, `!=`, `<`, `<=`, `>` and `>=` by rewriting, so none of them is written out by hand.
+/// @details A single three-way operator is all the class needs: a scoped enum has no built-in ordering, but a
+/// comparison A single three-way operator is all the class needs: a scoped enum has no built-in ordering, but a
+/// comparison category in hand gives `==`, `!=`, `<`, `<=`, `>` and `>=` by rewriting, so none of them is written out
+/// by hand.
 [[nodiscard]]
 constexpr std::strong_ordering operator<=>(qos lhs, qos rhs) noexcept {
     return static_cast<std::uint8_t>(lhs) <=> static_cast<std::uint8_t>(rhs);

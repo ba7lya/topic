@@ -65,13 +65,13 @@ template<payload_container T>
 class router {
 public:
     /// @brief The payload table a matcher node holds, one entry per subscription ending at that node.
-    using subscription_table = std::unordered_map<subscription_id, T, subscription_id_hash>;
+    using subscription_table = std::unordered_map<subscription_id, T>;
 
     /// @brief The pattern and effective QoS recorded for one subscription.
     using subscription_record = std::pair<topic_pattern_path, qos>;
 
     /// @brief Every active subscription, keyed by id.
-    using subscription_registry = std::unordered_map<subscription_id, subscription_record, subscription_id_hash>;
+    using subscription_registry = std::unordered_map<subscription_id, subscription_record>;
 
     ///
     /// @brief One subscription that matched a delivered topic name.

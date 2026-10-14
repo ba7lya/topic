@@ -414,17 +414,6 @@ struct subscription_id {
 };
 
 ///
-/// @brief Hashes a `subscription_id` for use as a map key.
-///
-template<>
-struct std::hash<subscription_id> {
-    [[nodiscard]]
-    std::size_t operator()(const subscription_id& id) const noexcept {
-        return std::hash<std::size_t> {}(id.value);
-    }
-};
-
-///
 /// @brief A subscription pattern was rejected while it was being registered.
 ///
 struct invalid_pattern_error : error_base {
@@ -588,3 +577,17 @@ inline std::string describe(const topic_error& error) {
 }
 
 } // namespace ba7lya::topic
+
+///
+/// @brief Hashes a `subscription_id` for use as a map key.
+/// @note The specialization lives outside `ba7lya::topic`, because `std::hash` may not be specialized from inside an
+/// enclosing namespace.
+///
+template<>
+struct std::hash<ba7lya::topic::subscription_id> {
+    /// @brief Hashes the numeric identity.
+    [[nodiscard]]
+    std::size_t operator()(const ba7lya::topic::subscription_id& id) const noexcept {
+        return std::hash<std::size_t> {}(id.value);
+    }
+};

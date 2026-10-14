@@ -201,7 +201,7 @@ TEST(trie_tests, removing_mixed_subscriptions_lifts_the_patterns_that_remain) {
                 { "sensors/humidity",   1 },
                 { "sensors/#",          1 },
                 { "home/+/temperature", 1 }
-            }
+    }
         )
     );
 }
