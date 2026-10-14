@@ -69,7 +69,7 @@ target_sources(${PROJECT_NAME}
 )
 
 if(${PROJECT_NAME}_ROUTER)
-    target_sources(${PROJECT_NAME} PRIVATE src/router.cxx)
+    # No router translation unit: the router is a template, so its members live in `include/router.hxx`.
 else()
     target_compile_definitions(${PROJECT_NAME} PUBLIC BA7LYA_TOPIC_NO_ROUTER)
 endif()

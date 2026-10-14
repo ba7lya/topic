@@ -19,11 +19,6 @@
 namespace ba7lya::topic {
 
 ///
-/// @brief Which of the two states a `result` currently holds.
-///
-enum class result_status : std::uint8_t { OK, ERROR };
-
-///
 /// @brief A value or an error, never both.
 /// @tparam T The success type.
 /// @tparam E The error type, usually a `std::variant` of concrete error structs.

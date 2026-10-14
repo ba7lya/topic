@@ -326,15 +326,6 @@ struct segment_mismatch_error : error_base {
 };
 
 ///
-/// @brief The filter named the same parameter twice.
-///
-struct duplicate_param_name_error : error_base {
-    /// @brief Builds the error with its message.
-    duplicate_param_name_error()
-        : error_base("Duplicate parameter name found in pattern") {}
-};
-
-///
 /// @brief The filter's first level is an unbound wildcard and the topic name begins with `$`, which the reserved
 /// `$SYS`/`$share` space forbids.
 ///
@@ -357,7 +348,6 @@ using topic_match_error = std::variant<
     unexpected_end_of_topic_error,   //
     unexpected_hash_segment_error,   //
     segment_mismatch_error,          //
-    duplicate_param_name_error,      //
     dollar_topic_exclusion_error>;
 
 /// @brief Renders an error the way the Rust original's `Display` impls do.
@@ -414,19 +404,6 @@ struct subscription_id {
 };
 
 ///
-/// @brief A subscription pattern was rejected while it was being registered.
-///
-struct invalid_pattern_error : error_base {
-    /// @brief Builds the error around the pattern's own failure.
-    explicit invalid_pattern_error(topic_pattern_error cause_)
-        : error_base("Invalid topic pattern: " + describe(cause_))
-        , cause(std::move(cause_)) {}
-
-    /// @brief Why the pattern was rejected.
-    topic_pattern_error cause;
-};
-
-///
 /// @brief The matcher failed while a subscription was being removed.
 ///
 struct matching_failed_error : error_base {
@@ -453,43 +430,9 @@ struct subscription_not_found_error : error_base {
 };
 
 ///
-/// @brief A topic name was rejected for a routing operation.
-///
-struct invalid_routing_topic_error : error_base {
-    /// @brief Builds the error for `topic_` with `reason_`.
-    invalid_routing_topic_error(std::string topic_, std::string reason_)
-        : error_base("Topic '" + topic_ + "' is invalid for routing: " + reason_)
-        , topic(std::move(topic_))
-        , reason(std::move(reason_)) {}
-
-    /// @brief The topic that was rejected.
-    std::string topic;
-    /// @brief Why it was rejected.
-    std::string reason;
-};
-
-///
-/// @brief The router's internal tables disagree with each other, which is a bug rather than a caller mistake.
-///
-struct internal_state_corrupted_error : error_base {
-    /// @brief Builds the error for `details_`.
-    explicit internal_state_corrupted_error(std::string details_)
-        : error_base("Internal routing state corrupted: " + details_)
-        , details(std::move(details_)) {}
-
-    /// @brief What the inconsistency was.
-    std::string details;
-};
-
-///
 /// @brief Everything that can go wrong while routing.
 ///
-using router_error = std::variant<
-    invalid_pattern_error,        //
-    matching_failed_error,        //
-    subscription_not_found_error, //
-    invalid_routing_topic_error,  //
-    internal_state_corrupted_error>;
+using router_error = std::variant<matching_failed_error, subscription_not_found_error>;
 
 ///
 /// @brief Renders an error the way the Rust original's `Display` impls do.
@@ -502,14 +445,6 @@ inline std::string describe(const router_error& error) {
 /// @brief Builds a `subscription_not_found_error`.
 [[nodiscard]]
 router_error subscription_not_found(subscription_id id);
-
-/// @brief Builds an `invalid_routing_topic_error`.
-[[nodiscard]]
-router_error invalid_routing_topic(std::string topic, std::string reason);
-
-/// @brief Builds an `internal_state_corrupted_error`.
-[[nodiscard]]
-router_error internal_state_corrupted(std::string details);
 
 ///
 /// @brief A topic pattern failed to parse or validate.
@@ -565,10 +500,6 @@ struct router_stage_error : error_base {
 
 /// @brief Everything that can go wrong in a topic operation, whichever stage it failed at.
 using topic_error = std::variant<pattern_stage_error, format_stage_error, matcher_stage_error, router_stage_error>;
-
-/// @brief A topic operation's outcome.
-template<typename T>
-using topic_result = result<T, topic_error>;
 
 /// @brief Renders an error the way the Rust original's `Display` impls do.
 [[nodiscard]]

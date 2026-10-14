@@ -23,12 +23,4 @@ topic_matcher_error invalid_segment(std::string segment, std::size_t position) {
 
 router_error subscription_not_found(subscription_id id) { return subscription_not_found_error { id }; }
 
-router_error invalid_routing_topic(std::string topic, std::string reason) {
-    return invalid_routing_topic_error { std::move(topic), std::move(reason) };
-}
-
-router_error internal_state_corrupted(std::string details) {
-    return internal_state_corrupted_error { std::move(details) };
-}
-
 } // namespace ba7lya::topic
